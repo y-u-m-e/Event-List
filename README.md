@@ -98,12 +98,6 @@ Copy the long string between `/d/` and `/edit`.
 **Wrong times?**
 Events display in your local timezone. Enter times accordingly.
 
-## Building
-
-```bash
-./gradlew build
-```
-
 ## License
 
 BSD 2-Clause License - See [LICENSE](LICENSE) for details.
