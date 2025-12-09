@@ -70,7 +70,7 @@ public interface EventListConfig extends Config
     @Range(min = 1, max = 60)
     default int refreshInterval()
     {
-        return 5;
+        return 60;
     }
 
     // ========== Overlay Settings ==========
@@ -133,6 +133,30 @@ public interface EventListConfig extends Config
     default Color imminentColor()
     {
         return new Color(255, 100, 100);
+    }
+
+    @ConfigItem(
+        keyName = "activeColor",
+        name = "Active Event Color",
+        description = "Color for currently happening events",
+        section = overlaySection,
+        position = 5
+    )
+    default Color activeColor()
+    {
+        return new Color(100, 255, 100);
+    }
+
+    @ConfigItem(
+        keyName = "simpleOverlay",
+        name = "Simple Overlay",
+        description = "Use compact overlay (just event name and time, no titles)",
+        section = overlaySection,
+        position = 6
+    )
+    default boolean simpleOverlay()
+    {
+        return false;
     }
 
     // ========== Panel Settings ==========

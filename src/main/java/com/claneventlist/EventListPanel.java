@@ -25,16 +25,17 @@ public class EventListPanel extends PluginPanel
     private static final Color ACCENT_COLOR = new Color(255, 200, 0);
     private static final Color IMMINENT_COLOR = new Color(255, 100, 100);
     private static final Color HAPPENING_COLOR = new Color(100, 255, 100);
-    private static final Color TODAY_COLOR = new Color(100, 200, 100);
     private static final Color LINK_COLOR = new Color(100, 180, 255);
     private static final Color TEXT_COLOR = Color.WHITE;
     private static final Color SECONDARY_TEXT = ColorScheme.LIGHT_GRAY_COLOR;
     
     private static final int EVENT_SPACING = 8;
-    private static final int MAX_NAME_LENGTH = 40;
     private static final int MAX_DESC_LENGTH = 400;
-    private static final int TEXT_WIDTH = 135; // Width for HTML text wrapping
-    private static final int EVENT_PANEL_WIDTH = 165; // Max width for event cards
+    // RuneLite panel is ~225px usable, minus padding = content width
+    private static final int CONTENT_WIDTH = 205;
+    private static final int TEXT_WIDTH = 140; // Text wrap width (account for emoji + padding + borders)
+    
+    private static boolean DEBUG_SIZES = false;
 
     private final EventListConfig config;
     private final GoogleSheetService sheetService;
@@ -108,10 +109,11 @@ public class EventListPanel extends PluginPanel
 
     private JScrollPane createContentPanel()
     {
+        // Use BoxLayout for the events container - it respects max sizes
         eventsContainer = new JPanel();
-        eventsContainer.setLayout(new GridBagLayout());
+        eventsContainer.setLayout(new BoxLayout(eventsContainer, BoxLayout.Y_AXIS));
         eventsContainer.setBackground(BACKGROUND_COLOR);
-        eventsContainer.setBorder(new EmptyBorder(0, 4, 0, 12)); // Padding inside scroll area (extra right for scrollbar)
+        eventsContainer.setBorder(new EmptyBorder(0, 8, 0, 8));
 
         JScrollPane scrollPane = new JScrollPane(eventsContainer);
         scrollPane.setBackground(BACKGROUND_COLOR);
@@ -164,67 +166,96 @@ public class EventListPanel extends PluginPanel
             int maxEvents = config.maxEventsInPanel();
             int displayCount = Math.min(events.size(), maxEvents);
 
-            GridBagConstraints gbc = new GridBagConstraints();
-            gbc.gridx = 0;
-            gbc.gridy = 0;
-            gbc.weightx = 1;
-            gbc.fill = GridBagConstraints.HORIZONTAL;
-            gbc.insets = new Insets(0, 0, EVENT_SPACING, 0);
-
             if (events.isEmpty())
             {
-                gbc.anchor = GridBagConstraints.CENTER;
-                gbc.fill = GridBagConstraints.NONE;
-                
                 JLabel noEventsLabel = new JLabel("No upcoming events");
                 noEventsLabel.setFont(FontManager.getRunescapeFont());
                 noEventsLabel.setForeground(SECONDARY_TEXT);
+                noEventsLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
                 noEventsLabel.setBorder(new EmptyBorder(20, 0, 10, 0));
-                eventsContainer.add(noEventsLabel, gbc);
-                gbc.gridy++;
+                eventsContainer.add(noEventsLabel);
 
                 if (config.sheetId().isEmpty())
                 {
                     JLabel configLabel = new JLabel("<html><center>Configure your Google Sheet ID<br>in the plugin settings</center></html>");
                     configLabel.setFont(FontManager.getRunescapeSmallFont());
                     configLabel.setForeground(SECONDARY_TEXT);
-                    eventsContainer.add(configLabel, gbc);
+                    configLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    eventsContainer.add(configLabel);
                 }
             }
             else
             {
+                // Get the highlighted event (active or next upcoming)
+                ClanEvent highlightedEvent = sheetService.getHighlightedEvent();
+                ClanEvent activeEvent = sheetService.getActiveEvent();
+                
+                // Show active event section at the top if there's one happening
+                if (activeEvent != null)
+                {
+                    // Active event header
+                    JLabel activeHeader = new JLabel("● ACTIVE EVENT");
+                    activeHeader.setFont(FontManager.getRunescapeBoldFont());
+                    activeHeader.setForeground(HAPPENING_COLOR);
+                    activeHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    eventsContainer.add(activeHeader);
+                    eventsContainer.add(Box.createVerticalStrut(4));
+                    
+                    eventsContainer.add(createEventPanel(activeEvent, true));
+                    eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
+                    
+                    // Separator
+                    JSeparator separator = new JSeparator();
+                    separator.setForeground(SECONDARY_TEXT);
+                    separator.setMaximumSize(new Dimension(CONTENT_WIDTH, 2));
+                    separator.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    eventsContainer.add(separator);
+                    eventsContainer.add(Box.createVerticalStrut(8));
+                    
+                    // Upcoming events header
+                    JLabel upcomingHeader = new JLabel("UPCOMING");
+                    upcomingHeader.setFont(FontManager.getRunescapeBoldFont());
+                    upcomingHeader.setForeground(ACCENT_COLOR);
+                    upcomingHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    eventsContainer.add(upcomingHeader);
+                    eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
+                }
+                
                 for (int i = 0; i < displayCount; i++)
                 {
                     ClanEvent event = events.get(i);
                     
-                    // No spacing after last item
-                    if (i == displayCount - 1)
+                    // Skip active event in the main list since it's shown at top
+                    if (activeEvent != null && event.equals(activeEvent))
                     {
-                        gbc.insets = new Insets(0, 0, 0, 0);
+                        continue;
                     }
                     
-                    eventsContainer.add(createEventPanel(event, i == 0), gbc);
-                    gbc.gridy++;
+                    // Highlight if this is the next upcoming event (not active, since active is shown separately)
+                    boolean isHighlighted = activeEvent == null && highlightedEvent != null && event.equals(highlightedEvent);
+                    eventsContainer.add(createEventPanel(event, isHighlighted));
+                    
+                    // Add spacing between events (not after the last one)
+                    if (i < displayCount - 1)
+                    {
+                        eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
+                    }
                 }
 
                 if (events.size() > maxEvents)
                 {
-                    gbc.insets = new Insets(EVENT_SPACING, 0, 0, 0);
-                    gbc.anchor = GridBagConstraints.CENTER;
-                    gbc.fill = GridBagConstraints.NONE;
+                    eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
                     
                     JLabel moreLabel = new JLabel("+" + (events.size() - maxEvents) + " more events");
                     moreLabel.setFont(FontManager.getRunescapeSmallFont());
                     moreLabel.setForeground(SECONDARY_TEXT);
-                    eventsContainer.add(moreLabel, gbc);
-                    gbc.gridy++;
+                    moreLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    eventsContainer.add(moreLabel);
                 }
             }
 
-            // Add filler to push content to top
-            gbc.weighty = 1;
-            gbc.fill = GridBagConstraints.BOTH;
-            eventsContainer.add(Box.createGlue(), gbc);
+            // Add vertical glue to push content to top
+            eventsContainer.add(Box.createVerticalGlue());
 
             // Update status
             statusLabel.setText(events.size() + " event" + (events.size() != 1 ? "s" : ""));
@@ -250,6 +281,31 @@ public class EventListPanel extends PluginPanel
 
             eventsContainer.revalidate();
             eventsContainer.repaint();
+            
+            // Debug sizes after layout
+            if (DEBUG_SIZES)
+            {
+                SwingUtilities.invokeLater(() -> {
+                    log.info("=== DEBUG SIZES ===");
+                    log.info("Panel width: {}, Content width constant: {}, Text width constant: {}", 
+                        EventListPanel.this.getWidth(), CONTENT_WIDTH, TEXT_WIDTH);
+                    log.info("EventsContainer size: {}x{}", eventsContainer.getWidth(), eventsContainer.getHeight());
+                    log.info("EventsContainer preferred: {}x{}", 
+                        eventsContainer.getPreferredSize().width, eventsContainer.getPreferredSize().height);
+                    
+                    for (int i = 0; i < eventsContainer.getComponentCount(); i++)
+                    {
+                        Component c = eventsContainer.getComponent(i);
+                        log.info("Component {}: {} - size: {}x{}, preferred: {}x{}, min: {}x{}, max: {}x{}", 
+                            i, c.getClass().getSimpleName(),
+                            c.getWidth(), c.getHeight(),
+                            c.getPreferredSize().width, c.getPreferredSize().height,
+                            c.getMinimumSize().width, c.getMinimumSize().height,
+                            c.getMaximumSize().width, c.getMaximumSize().height);
+                    }
+                    log.info("===================");
+                });
+            }
         });
     }
 
@@ -261,8 +317,8 @@ public class EventListPanel extends PluginPanel
         eventPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
         eventPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         
-        // Constrain event panel width
-        eventPanel.setMaximumSize(new Dimension(EVENT_PANEL_WIDTH, Integer.MAX_VALUE));
+        // Constrain event panel width - BoxLayout respects this
+        eventPanel.setMaximumSize(new Dimension(CONTENT_WIDTH, Short.MAX_VALUE));
 
         // Determine status and colors
         boolean isHappening = event.isHappeningNow();
@@ -291,100 +347,97 @@ public class EventListPanel extends PluginPanel
             ));
         }
 
-        // Row 1: Event name (truncated with tooltip)
+        // === EVENT NAME (wraps to multiple lines, max ~60 chars) ===
         String name = event.getName();
         String displayName = name;
-        if (name.length() > MAX_NAME_LENGTH)
+        // Limit characters but allow word wrap for 2+ lines
+        int maxNameChars = 60;
+        if (name.length() > maxNameChars)
         {
-            displayName = name.substring(0, MAX_NAME_LENGTH) + "...";
+            displayName = name.substring(0, maxNameChars) + "...";
         }
-        JLabel nameLabel = new JLabel(displayName);
-        nameLabel.setFont(FontManager.getRunescapeBoldFont().deriveFont(12f));
-        nameLabel.setToolTipText(name);
+        
+        String nameColor;
         if (isHappening)
         {
-            nameLabel.setForeground(HAPPENING_COLOR);
+            nameColor = "#64ff64";
         }
         else if (isImminent)
         {
-            nameLabel.setForeground(IMMINENT_COLOR);
+            nameColor = "#ff6464";
         }
         else if (isNext)
         {
-            nameLabel.setForeground(ACCENT_COLOR);
+            nameColor = "#ffc800";
         }
         else
         {
-            nameLabel.setForeground(TEXT_COLOR);
+            nameColor = "#ffffff";
         }
+        // Use word-wrap to allow multi-line names
+        JLabel nameLabel = new JLabel("<html><div style='width: " + TEXT_WIDTH + "px; word-wrap: break-word'>" + 
+            "<span style='color: " + nameColor + "'>" + escapeHtml(displayName) + "</span></div></html>");
+        nameLabel.setFont(FontManager.getRunescapeBoldFont().deriveFont(14f));
+        nameLabel.setToolTipText(name); // Full name in tooltip
         nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         eventPanel.add(nameLabel);
-        eventPanel.add(Box.createVerticalStrut(2));
+        eventPanel.add(Box.createVerticalStrut(8));
 
-        // Row 2: Date and time info
-        String dateTimeText = event.getDayString() + " • " + event.getTimeRange();
+        // HTML style for emoji-compatible line height
+        String emojiStyle = "style='width: " + TEXT_WIDTH + "px; line-height: 1.4; padding-top: 2px'";
+
+        // === DATE ===
+        JLabel dateLabel = new JLabel("<html><body " + emojiStyle + ">" +
+            "📅 <span style='color: #b0b0b0'>Date:</span> " + 
+            "<span style='color: " + (event.isToday() ? "#64c864" : "#ffffff") + "'>" + 
+            escapeHtml(event.getDayString()) + "</span></body></html>");
+        dateLabel.setFont(FontManager.getRunescapeSmallFont());
+        dateLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        eventPanel.add(dateLabel);
+        eventPanel.add(Box.createVerticalStrut(4));
+
+        // === TIME ===
+        String timeText = event.getTimeRange();
         String duration = event.getDuration();
         if (duration != null)
         {
-            dateTimeText += " (" + duration + ")";
+            timeText += " (" + duration + ")";
         }
-        
-        JLabel dateTimeLabel = new JLabel(dateTimeText);
-        dateTimeLabel.setFont(FontManager.getRunescapeSmallFont());
-        dateTimeLabel.setForeground(event.isToday() ? TODAY_COLOR : SECONDARY_TEXT);
-        dateTimeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        eventPanel.add(dateTimeLabel);
-        eventPanel.add(Box.createVerticalStrut(2));
+        JLabel timeLabel = new JLabel("<html><body " + emojiStyle + ">" +
+            "🕐 <span style='color: #b0b0b0'>Time:</span> " + 
+            "<span style='color: #ffffff'>" + escapeHtml(timeText) + "</span></body></html>");
+        timeLabel.setFont(FontManager.getRunescapeSmallFont());
+        timeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        eventPanel.add(timeLabel);
+        eventPanel.add(Box.createVerticalStrut(4));
 
-        // Row 3: Countdown / Status
-        if (isHappening)
-        {
-            JLabel statusLbl = new JLabel("● HAPPENING NOW");
-            statusLbl.setFont(FontManager.getRunescapeBoldFont());
-            statusLbl.setForeground(HAPPENING_COLOR);
-            statusLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(statusLbl);
-        }
-        else if (event.isUpcoming())
-        {
-            JLabel countdownLabel = new JLabel("Starts in: " + event.getTimeUntil());
-            countdownLabel.setFont(FontManager.getRunescapeBoldFont());
-            countdownLabel.setForeground(isImminent ? IMMINENT_COLOR : TEXT_COLOR);
-            countdownLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(countdownLabel);
-        }
-
-        // Row 4: Host and Location (if available)
+        // === HOST ===
         boolean hasHost = event.getHost() != null && !event.getHost().isEmpty();
-        boolean hasLocation = event.getLocation() != null && !event.getLocation().isEmpty();
-        
-        if (hasHost || hasLocation)
+        if (hasHost)
         {
+            JLabel hostLabel = new JLabel("<html><body " + emojiStyle + ">" +
+                "📣 <span style='color: #b0b0b0'>Host:</span> " + 
+                "<span style='color: #ffffff'>" + escapeHtml(event.getHost()) + "</span></body></html>");
+            hostLabel.setFont(FontManager.getRunescapeSmallFont());
+            hostLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            eventPanel.add(hostLabel);
             eventPanel.add(Box.createVerticalStrut(4));
-            
-            StringBuilder details = new StringBuilder();
-            if (hasHost)
-            {
-                details.append("Host: ").append(event.getHost());
-            }
-            if (hasHost && hasLocation)
-            {
-                details.append(" • ");
-            }
-            if (hasLocation)
-            {
-                details.append("@ ").append(event.getLocation());
-            }
-            
-            JLabel detailsLabel = new JLabel("<html><body style='width: " + TEXT_WIDTH + "px'>" + 
-                escapeHtml(details.toString()) + "</body></html>");
-            detailsLabel.setFont(FontManager.getRunescapeSmallFont());
-            detailsLabel.setForeground(SECONDARY_TEXT);
-            detailsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(detailsLabel);
         }
 
-        // Row 5: Description (if available, with text wrapping)
+        // === LOCATION ===
+        boolean hasLocation = event.getLocation() != null && !event.getLocation().isEmpty();
+        if (hasLocation)
+        {
+            JLabel locationLabel = new JLabel("<html><body " + emojiStyle + ">" +
+                "📍 <span style='color: #b0b0b0'>Location:</span> " + 
+                "<span style='color: #ffffff'>" + escapeHtml(event.getLocation()) + "</span></body></html>");
+            locationLabel.setFont(FontManager.getRunescapeSmallFont());
+            locationLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            eventPanel.add(locationLabel);
+            eventPanel.add(Box.createVerticalStrut(4));
+        }
+
+        // === DESCRIPTION ===
         if (event.getDescription() != null && !event.getDescription().isEmpty())
         {
             eventPanel.add(Box.createVerticalStrut(4));
@@ -395,12 +448,17 @@ public class EventListPanel extends PluginPanel
             {
                 desc = desc.substring(0, MAX_DESC_LENGTH) + "...";
             }
-            // Use HTML for text wrapping with constrained width
-            String htmlDesc = "<html><body style='width: " + TEXT_WIDTH + "px'>" + 
-                escapeHtml(desc) + "</body></html>";
-            JLabel descLabel = new JLabel(htmlDesc);
+            
+            JLabel descHeaderLabel = new JLabel("<html><body " + emojiStyle + ">" +
+                "📝 <span style='color: #b0b0b0'>Description:</span></body></html>");
+            descHeaderLabel.setFont(FontManager.getRunescapeSmallFont());
+            descHeaderLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            eventPanel.add(descHeaderLabel);
+            eventPanel.add(Box.createVerticalStrut(3));
+            
+            JLabel descLabel = new JLabel("<html><body style='width: " + TEXT_WIDTH + "px; color: #c8c8c8'>" + 
+                escapeHtml(desc) + "</body></html>");
             descLabel.setFont(FontManager.getRunescapeSmallFont());
-            descLabel.setForeground(SECONDARY_TEXT);
             descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
             if (fullDesc.length() > MAX_DESC_LENGTH)
             {
@@ -410,12 +468,12 @@ public class EventListPanel extends PluginPanel
             eventPanel.add(descLabel);
         }
 
-        // Row 6: Link button (if URL available)
+        // === LINK ===
         if (event.hasUrl())
         {
             eventPanel.add(Box.createVerticalStrut(6));
             
-            JLabel linkLabel = new JLabel("[Link] More Info");
+            JLabel linkLabel = new JLabel("🔗 More Info");
             linkLabel.setFont(FontManager.getRunescapeSmallFont());
             linkLabel.setForeground(LINK_COLOR);
             linkLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -432,17 +490,38 @@ public class EventListPanel extends PluginPanel
                 @Override
                 public void mouseEntered(MouseEvent e)
                 {
-                    linkLabel.setText("<html><u>[Link] More Info</u></html>");
+                    linkLabel.setText("<html><u>🔗 More Info</u></html>");
                 }
 
                 @Override
                 public void mouseExited(MouseEvent e)
                 {
-                    linkLabel.setText("[Link] More Info");
+                    linkLabel.setText("🔗 More Info");
                 }
             });
             
             eventPanel.add(linkLabel);
+        }
+
+        // === STATUS / COUNTDOWN (at bottom) ===
+        eventPanel.add(Box.createVerticalStrut(8));
+        if (isHappening)
+        {
+            JLabel statusLbl = new JLabel("<html><body " + emojiStyle + ">" +
+                "🟢 <span style='color: #64ff64'><b>HAPPENING NOW</b></span></body></html>");
+            statusLbl.setFont(FontManager.getRunescapeBoldFont());
+            statusLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+            eventPanel.add(statusLbl);
+        }
+        else if (event.isUpcoming())
+        {
+            String countdownColor = isImminent ? "#ff6464" : "#ffffff";
+            JLabel countdownLabel = new JLabel("<html><body " + emojiStyle + ">" +
+                "⏱️ <span style='color: " + countdownColor + "'><b>Starts in: " + 
+                escapeHtml(event.getTimeUntil()) + "</b></span></body></html>");
+            countdownLabel.setFont(FontManager.getRunescapeBoldFont());
+            countdownLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            eventPanel.add(countdownLabel);
         }
 
         // Hover effect for the whole panel
@@ -473,16 +552,13 @@ public class EventListPanel extends PluginPanel
         SwingUtilities.invokeLater(() -> {
             eventsContainer.removeAll();
 
-            GridBagConstraints gbc = new GridBagConstraints();
-            gbc.gridx = 0;
-            gbc.gridy = 0;
-            gbc.anchor = GridBagConstraints.CENTER;
-
             JLabel errorLabel = new JLabel("<html><center>" + message + "</center></html>");
             errorLabel.setFont(FontManager.getRunescapeFont());
             errorLabel.setForeground(IMMINENT_COLOR);
+            errorLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
             errorLabel.setBorder(new EmptyBorder(20, 0, 20, 0));
-            eventsContainer.add(errorLabel, gbc);
+            eventsContainer.add(errorLabel);
+            eventsContainer.add(Box.createVerticalGlue());
 
             statusLabel.setText("Error");
             
@@ -499,16 +575,13 @@ public class EventListPanel extends PluginPanel
         SwingUtilities.invokeLater(() -> {
             eventsContainer.removeAll();
 
-            GridBagConstraints gbc = new GridBagConstraints();
-            gbc.gridx = 0;
-            gbc.gridy = 0;
-            gbc.anchor = GridBagConstraints.CENTER;
-
             JLabel loadingLabel = new JLabel("Loading events...");
             loadingLabel.setFont(FontManager.getRunescapeFont());
             loadingLabel.setForeground(SECONDARY_TEXT);
+            loadingLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
             loadingLabel.setBorder(new EmptyBorder(20, 0, 20, 0));
-            eventsContainer.add(loadingLabel, gbc);
+            eventsContainer.add(loadingLabel);
+            eventsContainer.add(Box.createVerticalGlue());
 
             statusLabel.setText("Loading...");
 
@@ -534,4 +607,3 @@ public class EventListPanel extends PluginPanel
             .replace("\n", "<br>");
     }
 }
-

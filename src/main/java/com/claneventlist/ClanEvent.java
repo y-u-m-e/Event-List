@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 
@@ -31,56 +32,90 @@ public class ClanEvent implements Comparable<ClanEvent>
     private static final DateTimeFormatter SHORT_FORMAT = DateTimeFormatter.ofPattern("MMM dd HH:mm");
     private static final DateTimeFormatter TIME_ONLY = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern("EEE, MMM dd");
+    
+    private static final ZoneId UTC = ZoneId.of("UTC");
+    private static final ZoneId LOCAL = ZoneId.systemDefault();
+    
+    /**
+     * Converts the stored UTC dateTime to local timezone.
+     */
+    private LocalDateTime getLocalDateTime()
+    {
+        if (dateTime == null)
+        {
+            return null;
+        }
+        return dateTime.atZone(UTC).withZoneSameInstant(LOCAL).toLocalDateTime();
+    }
+    
+    /**
+     * Converts the stored UTC endTime to local timezone.
+     */
+    private LocalTime getLocalEndTime()
+    {
+        if (endTime == null || dateTime == null)
+        {
+            return null;
+        }
+        // Create a full datetime for the end time using same date as start
+        LocalDateTime endDateTime = dateTime.toLocalDate().atTime(endTime);
+        return endDateTime.atZone(UTC).withZoneSameInstant(LOCAL).toLocalTime();
+    }
 
     /**
-     * Returns a formatted string of the event date/time.
+     * Returns a formatted string of the event date/time in local timezone.
      */
     public String getFormattedDateTime()
     {
-        if (dateTime == null)
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
         {
             return "TBD";
         }
-        return dateTime.format(DISPLAY_FORMAT);
+        return local.format(DISPLAY_FORMAT);
     }
 
     /**
-     * Returns a short formatted string of the event date/time.
+     * Returns a short formatted string of the event date/time in local timezone.
      */
     public String getShortDateTime()
     {
-        if (dateTime == null)
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
         {
             return "TBD";
         }
-        return dateTime.format(SHORT_FORMAT);
+        return local.format(SHORT_FORMAT);
     }
 
     /**
-     * Returns just the day (e.g., "Mon, Dec 15").
+     * Returns just the day (e.g., "Mon, Dec 15") in local timezone.
      */
     public String getDayString()
     {
-        if (dateTime == null)
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
         {
             return "TBD";
         }
-        return dateTime.format(DAY_FORMAT);
+        return local.format(DAY_FORMAT);
     }
 
     /**
-     * Returns the time range (e.g., "20:00 - 22:00" or just "20:00").
+     * Returns the time range (e.g., "20:00 - 22:00" or just "20:00") in local timezone.
      */
     public String getTimeRange()
     {
-        if (dateTime == null)
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
         {
             return "TBD";
         }
-        String start = dateTime.format(TIME_ONLY);
-        if (endTime != null)
+        String start = local.format(TIME_ONLY);
+        LocalTime localEnd = getLocalEndTime();
+        if (localEnd != null)
         {
-            return start + " - " + endTime.format(TIME_ONLY);
+            return start + " - " + localEnd.format(TIME_ONLY);
         }
         return start;
     }
@@ -122,6 +157,14 @@ public class ClanEvent implements Comparable<ClanEvent>
     }
 
     /**
+     * Gets the current time in UTC for comparisons with stored dateTime.
+     */
+    private LocalDateTime nowUtc()
+    {
+        return LocalDateTime.now(UTC);
+    }
+
+    /**
      * Returns a human-readable time until the event.
      */
     public String getTimeUntil()
@@ -131,7 +174,7 @@ public class ClanEvent implements Comparable<ClanEvent>
             return "Unknown";
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = nowUtc();
         if (dateTime.isBefore(now))
         {
             return "Started";
@@ -168,7 +211,7 @@ public class ClanEvent implements Comparable<ClanEvent>
      */
     public boolean isUpcoming()
     {
-        return dateTime != null && dateTime.isAfter(LocalDateTime.now());
+        return dateTime != null && dateTime.isAfter(nowUtc());
     }
 
     /**
@@ -180,7 +223,7 @@ public class ClanEvent implements Comparable<ClanEvent>
         {
             return false;
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = nowUtc();
         LocalDateTime end = endTime != null 
             ? dateTime.toLocalDate().atTime(endTime) 
             : dateTime.plusHours(2); // Assume 2 hour default
@@ -189,16 +232,17 @@ public class ClanEvent implements Comparable<ClanEvent>
     }
 
     /**
-     * Checks if this event is happening today.
+     * Checks if this event is happening today (in local timezone).
      */
     public boolean isToday()
     {
-        if (dateTime == null)
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
         {
             return false;
         }
         LocalDateTime now = LocalDateTime.now();
-        return dateTime.toLocalDate().equals(now.toLocalDate());
+        return local.toLocalDate().equals(now.toLocalDate());
     }
 
     /**
@@ -210,7 +254,7 @@ public class ClanEvent implements Comparable<ClanEvent>
         {
             return false;
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = nowUtc();
         long minutes = ChronoUnit.MINUTES.between(now, dateTime);
         return minutes >= 0 && minutes <= 60;
     }

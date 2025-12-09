@@ -12,3 +12,6 @@ nbproject/
 .cursor/
 .vscode/
 null-ignored.json
+
+# Build artifacts
+bin/

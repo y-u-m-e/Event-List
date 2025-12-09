@@ -57,7 +57,14 @@ public class GoogleSheetService
         DateTimeFormatter.ofPattern("H:mm"),
         DateTimeFormatter.ofPattern("h:mm a"),
         DateTimeFormatter.ofPattern("hh:mm a"),
-        DateTimeFormatter.ofPattern("HH:mm:ss")
+        DateTimeFormatter.ofPattern("h:mm:ss a"),      // Google Sheets often includes seconds
+        DateTimeFormatter.ofPattern("hh:mm:ss a"),     // 12-hour with seconds
+        DateTimeFormatter.ofPattern("HH:mm:ss"),
+        DateTimeFormatter.ofPattern("H:mm:ss"),
+        DateTimeFormatter.ofPattern("h:mma"),          // No space before AM/PM
+        DateTimeFormatter.ofPattern("hh:mma"),
+        DateTimeFormatter.ofPattern("h:mm:ssa"),       // No space, with seconds
+        DateTimeFormatter.ofPattern("hh:mm:ssa")
     };
 
     private final OkHttpClient httpClient;
@@ -154,6 +161,27 @@ public class GoogleSheetService
             .sorted()
             .findFirst()
             .orElse(null);
+    }
+
+    /**
+     * Returns the currently active (happening now) event, if any.
+     */
+    public ClanEvent getActiveEvent()
+    {
+        return cachedEvents.stream()
+            .filter(ClanEvent::isHappeningNow)
+            .sorted()
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * Returns the event that should be highlighted (active or next upcoming).
+     */
+    public ClanEvent getHighlightedEvent()
+    {
+        ClanEvent active = getActiveEvent();
+        return active != null ? active : getNextEvent();
     }
 
     /**
@@ -440,16 +468,23 @@ public class GoogleSheetService
         // Try to parse the time if provided
         if (timeStr != null && !timeStr.isEmpty())
         {
+            String normalizedTime = timeStr.trim().toUpperCase();
+            boolean timeParsed = false;
             for (DateTimeFormatter format : TIME_FORMATS)
             {
                 try
                 {
-                    time = java.time.LocalTime.parse(timeStr.toUpperCase(), format);
+                    time = java.time.LocalTime.parse(normalizedTime, format);
+                    timeParsed = true;
                     break;
                 }
                 catch (DateTimeParseException ignored)
                 {
                 }
+            }
+            if (!timeParsed)
+            {
+                log.debug("Could not parse time '{}' (normalized: '{}'), using noon default", timeStr, normalizedTime);
             }
         }
 
