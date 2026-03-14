@@ -10,13 +10,13 @@ import lombok.NoArgsConstructor;
 public class SeasonalIdentity
 {
     private String eventId;
-    private String ingestId;
+    private String eventPassphrase;
     private String pluginKeyword;
     private String clientInstanceId;
 
     public boolean isLinked()
     {
-        return nonEmpty(eventId) && nonEmpty(ingestId) && nonEmpty(pluginKeyword);
+        return nonEmpty(eventId) && nonEmpty(eventPassphrase) && nonEmpty(pluginKeyword);
     }
 
     private boolean nonEmpty(String value)

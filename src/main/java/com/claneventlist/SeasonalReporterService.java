@@ -7,8 +7,6 @@ import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.ui.DrawManager;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -18,9 +16,11 @@ import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Slf4j
@@ -40,6 +40,8 @@ public class SeasonalReporterService
     private final SeasonalSubmissionQueue queue;
     private final SeasonalTelemetry telemetry = new SeasonalTelemetry();
     private SeasonalEligibilityManifest manifest = new SeasonalEligibilityManifest();
+    private final Map<String, Set<Integer>> allowedDropsByBoss = new HashMap<>();
+    private final Set<Integer> allowedAnyBossItems = new HashSet<>();
 
     private long tickCounter = 0L;
 
@@ -91,7 +93,7 @@ public class SeasonalReporterService
         SeasonalIdentity identity = getIdentity();
         if (!identity.isLinked())
         {
-            telemetry.setLastError("Seasonal reporter is not configured (event id + ingest key required).");
+            telemetry.setLastError("Seasonal reporter is not configured (event id + passphrase required).");
             refreshLinkStatus();
             return;
         }
@@ -104,6 +106,12 @@ public class SeasonalReporterService
         }
 
         List<SeasonalSubmission> captured = new ArrayList<>();
+        String playerRsn = getLocalPlayerRsn();
+        if (playerRsn.isEmpty())
+        {
+            telemetry.setLastError("Could not resolve local player RSN.");
+            return;
+        }
         for (ItemStack item : event.getItems())
         {
             if (!isLocallyEligible(bossKey, item.getId()))
@@ -117,6 +125,7 @@ public class SeasonalReporterService
                 item.getId(),
                 item.getQuantity(),
                 Instant.now().toString(),
+                playerRsn,
                 buildSourceRef(client.getAccountHash(), client.getWorld(), tickCounter, item.getId(), item.getQuantity())
             );
             captured.add(submission);
@@ -134,17 +143,11 @@ public class SeasonalReporterService
             return;
         }
 
-        if (config.seasonalIncludeScreenshot())
+        drawManager.requestNextFrameListener((java.awt.Image image) ->
         {
-            drawManager.requestNextFrameListener((java.awt.Image image) ->
-            {
-                String screenshot = encodeScreenshot(image);
-                enqueueCapturedSubmissions(captured, screenshot);
-            });
-            return;
-        }
-
-        enqueueCapturedSubmissions(captured, null);
+            String screenshot = encodeScreenshot(image);
+            enqueueCapturedSubmissions(captured, screenshot);
+        });
     }
 
     public void processQueue()
@@ -237,7 +240,7 @@ public class SeasonalReporterService
         }
         if (connectCode == null || connectCode.trim().isEmpty())
         {
-            telemetry.setLastError("Ingest key is required.");
+            telemetry.setLastError("Event passphrase is required.");
             return false;
         }
         telemetry.setPausedForAuth(false);
@@ -293,6 +296,7 @@ public class SeasonalReporterService
             Math.max(1, config.seasonalDebugItemId()),
             Math.max(1, config.seasonalDebugQuantity()),
             Instant.now().toString(),
+            getLocalPlayerRsn(),
             "runelite:debug:" + System.currentTimeMillis()
         );
 
@@ -310,37 +314,14 @@ public class SeasonalReporterService
 
     public void refreshManifest()
     {
-        SeasonalEligibilityManifest sheetManifest = loadManifestFromSheet();
-        if (sheetManifest != null)
+        parseAllowedDropsConfig(config.seasonalAllowedDrops());
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty())
         {
-            manifest = sheetManifest;
-            telemetry.setManifestStatus("Manifest loaded from Google Sheet: bosses=" + manifest.readonlyBossKeys().size()
-                + ", items=" + manifest.readonlyItemIds().size());
+            telemetry.setManifestStatus("No local drop config (nothing will be sent)");
             return;
         }
-
-        SeasonalIdentity identity = getIdentity();
-        if (!identity.isLinked())
-        {
-            manifest = new SeasonalEligibilityManifest();
-            telemetry.setManifestStatus("Manifest unavailable (not linked)");
-            return;
-        }
-
-        com.google.gson.JsonObject state = apiClient.fetchStateJson(identity);
-        SeasonalEligibilityManifest parsed = apiClient.parseEligibilityManifest(state);
-        manifest = parsed;
-
-        Set<String> bosses = parsed.readonlyBossKeys();
-        Set<Integer> items = parsed.readonlyItemIds();
-        if (bosses.isEmpty() && items.isEmpty())
-        {
-            telemetry.setManifestStatus("Manifest loaded (server fallback-only)");
-        }
-        else
-        {
-            telemetry.setManifestStatus("Manifest loaded: bosses=" + bosses.size() + ", items=" + items.size());
-        }
+        int mappedItems = allowedDropsByBoss.values().stream().mapToInt(Set::size).sum() + allowedAnyBossItems.size();
+        telemetry.setManifestStatus("Local drop config loaded: bosses=" + allowedDropsByBoss.size() + ", items=" + mappedItems);
     }
 
     public SeasonalTelemetry getTelemetry()
@@ -356,12 +337,13 @@ public class SeasonalReporterService
         int itemId,
         int quantity,
         String droppedAtIso,
+        String playerRsn,
         String sourceRef
     )
     {
         SeasonalSubmission submission = new SeasonalSubmission();
         submission.setEventId(identity.getEventId());
-        submission.setIngestId(identity.getIngestId());
+        submission.setEventPassphrase(identity.getEventPassphrase());
         submission.setPluginKeyword(identity.getPluginKeyword());
         submission.setClientInstanceId(identity.getClientInstanceId());
         submission.setBossKey(bossKey);
@@ -369,6 +351,7 @@ public class SeasonalReporterService
         submission.setQuantity(quantity);
         submission.setDroppedAt(droppedAtIso);
         submission.setSource(API_SOURCE);
+        submission.setPlayerRsn(playerRsn);
         submission.setSourceRef(sourceRef);
         return submission;
     }
@@ -441,65 +424,13 @@ public class SeasonalReporterService
         }
     }
 
-    private SeasonalEligibilityManifest loadManifestFromSheet()
+    private String getLocalPlayerRsn()
     {
-        String sheetId = config.seasonalDropsSheetId();
-        if (sheetId == null || sheetId.trim().isEmpty())
+        if (client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
         {
-            return null;
+            return "";
         }
-        String sheetName = config.seasonalDropsSheetName();
-        String url = (sheetName != null && !sheetName.trim().isEmpty())
-            ? String.format("https://docs.google.com/spreadsheets/d/%s/gviz/tq?tqx=out:csv&sheet=%s", sheetId.trim(), sheetName.trim())
-            : String.format("https://docs.google.com/spreadsheets/d/%s/gviz/tq?tqx=out:csv", sheetId.trim());
-
-        Request request = new Request.Builder().url(url).header("User-Agent", "RuneLite").build();
-        try (Response response = httpClient.newCall(request).execute())
-        {
-            okhttp3.ResponseBody body = response.body();
-            if (!response.isSuccessful() || body == null)
-            {
-                return null;
-            }
-            String csv = body.string();
-            String[] lines = csv.split("\\r?\\n");
-            SeasonalEligibilityManifest out = new SeasonalEligibilityManifest();
-            for (int i = 1; i < lines.length; i++)
-            {
-                String line = lines[i];
-                if (line == null || line.trim().isEmpty())
-                {
-                    continue;
-                }
-                String[] fields = line.split(",");
-                if (fields.length < 2)
-                {
-                    continue;
-                }
-                String boss = String.valueOf(fields[0]).trim().toLowerCase(Locale.US);
-                int itemId;
-                try
-                {
-                    itemId = Integer.parseInt(String.valueOf(fields[1]).trim());
-                }
-                catch (Exception ignored)
-                {
-                    continue;
-                }
-                if (!boss.isEmpty())
-                {
-                    out.getEligibleBossKeys().add(boss);
-                }
-                out.getEligibleItemIds().add(itemId);
-            }
-            out.setLoadedAtEpochMs(System.currentTimeMillis());
-            return out;
-        }
-        catch (Exception ex)
-        {
-            log.debug("Failed loading seasonal sheet manifest: {}", ex.getMessage());
-            return null;
-        }
+        return String.valueOf(client.getLocalPlayer().getName()).trim();
     }
 
     private void handleSingles(SeasonalIdentity identity, List<SeasonalQueueItem> items)
@@ -534,7 +465,7 @@ public class SeasonalReporterService
     {
         SeasonalIdentity identity = new SeasonalIdentity();
         identity.setEventId(config.seasonalEventId() != null ? config.seasonalEventId().trim() : "");
-        identity.setIngestId(config.seasonalConnectCode() != null ? config.seasonalConnectCode().trim() : "");
+        identity.setEventPassphrase(config.seasonalConnectCode() != null ? config.seasonalConnectCode().trim() : "");
         identity.setPluginKeyword(PLUGIN_KEYWORD);
         String existingClientId = configManager.getConfiguration(EventListConfig.CONFIG_GROUP, KEY_CLIENT_INSTANCE_ID);
         if (existingClientId == null || existingClientId.trim().isEmpty())
@@ -554,22 +485,80 @@ public class SeasonalReporterService
             telemetry.setLinkStatus("Not configured");
             return;
         }
-        telemetry.setLinkStatus("Configured: " + identity.getEventId() + " / " + identity.getIngestId());
+        telemetry.setLinkStatus("Configured: " + identity.getEventId() + " / passphrase set");
     }
 
     private boolean isLocallyEligible(String bossKey, int itemId)
     {
-        Set<String> bosses = manifest != null ? manifest.readonlyBossKeys() : new HashSet<>();
-        Set<Integer> items = manifest != null ? manifest.readonlyItemIds() : new HashSet<>();
-        if (!bosses.isEmpty() && !bosses.contains(bossKey))
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty())
         {
             return false;
         }
-        if (!items.isEmpty() && !items.contains(itemId))
+        if (allowedAnyBossItems.contains(itemId))
+        {
+            return true;
+        }
+        Set<Integer> bossItems = allowedDropsByBoss.get(bossKey);
+        if (bossItems == null || bossItems.isEmpty())
         {
             return false;
         }
-        return true;
+        return bossItems.contains(itemId);
+    }
+
+    private void parseAllowedDropsConfig(String rawConfig)
+    {
+        allowedDropsByBoss.clear();
+        allowedAnyBossItems.clear();
+        manifest = new SeasonalEligibilityManifest();
+        String raw = rawConfig == null ? "" : rawConfig.trim();
+        if (raw.isEmpty())
+        {
+            return;
+        }
+
+        String[] entries = raw.split("[,;\\n\\r]+");
+        for (String entry : entries)
+        {
+            String token = entry == null ? "" : entry.trim();
+            if (token.isEmpty())
+            {
+                continue;
+            }
+            String[] parts = token.split(":");
+            if (parts.length == 1)
+            {
+                Integer item = parseIntSafe(parts[0]);
+                if (item != null)
+                {
+                    allowedAnyBossItems.add(item);
+                    manifest.getEligibleItemIds().add(item);
+                }
+                continue;
+            }
+            String boss = normalizeBossKey(parts[0]);
+            Integer item = parseIntSafe(parts[1]);
+            if (boss.isEmpty() || item == null)
+            {
+                continue;
+            }
+            allowedDropsByBoss.computeIfAbsent(boss, k -> new HashSet<>()).add(item);
+            manifest.getEligibleBossKeys().add(boss);
+            manifest.getEligibleItemIds().add(item);
+        }
+        manifest.setLoadedAtEpochMs(System.currentTimeMillis());
+    }
+
+    private Integer parseIntSafe(String value)
+    {
+        try
+        {
+            return Integer.parseInt(String.valueOf(value).trim());
+        }
+        catch (Exception ignored)
+        {
+            return null;
+        }
     }
 }
 

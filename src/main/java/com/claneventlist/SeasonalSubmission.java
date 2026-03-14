@@ -13,6 +13,9 @@ public class SeasonalSubmission
     @SerializedName("event_id")
     private String eventId;
 
+    @SerializedName("event_passphrase")
+    private String eventPassphrase;
+
     @SerializedName("ingest_id")
     private String ingestId;
 
@@ -34,6 +37,9 @@ public class SeasonalSubmission
     private String droppedAt;
 
     private String source;
+
+    @SerializedName("player_rsn")
+    private String playerRsn;
 
     @SerializedName("source_ref")
     private String sourceRef;

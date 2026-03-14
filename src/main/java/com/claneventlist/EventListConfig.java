@@ -221,11 +221,23 @@ public interface EventListConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "seasonalApiEndpoint",
+        name = "Seasonal API Endpoint",
+        description = "Base API URL for seasonal submissions (for example: https://api.emuy.gg)",
+        section = seasonalSection,
+        position = 2
+    )
+    default String seasonalApiEndpoint()
+    {
+        return "https://api.emuy.gg";
+    }
+
+    @ConfigItem(
         keyName = "seasonalEventId",
         name = "Seasonal Event ID",
         description = "Event identifier configured on the website (for example: seasonal-2026-q2)",
         section = seasonalSection,
-        position = 2
+        position = 3
     )
     default String seasonalEventId()
     {
@@ -234,10 +246,10 @@ public interface EventListConfig extends Config
 
     @ConfigItem(
         keyName = "seasonalConnectCode",
-        name = "Ingest Key",
-        description = "Manual ingest key provided by admin",
+        name = "Event Passphrase",
+        description = "Passphrase configured in the sheet event_config tab",
         section = seasonalSection,
-        position = 3
+        position = 4
     )
     default String seasonalConnectCode()
     {
@@ -247,9 +259,9 @@ public interface EventListConfig extends Config
     @ConfigItem(
         keyName = "seasonalLinkNow",
         name = "Validate Settings Now",
-        description = "Toggle on to validate event id + ingest key are configured",
+        description = "Toggle on to validate event id + event passphrase are configured",
         section = seasonalSection,
-        position = 4
+        position = 5
     )
     default boolean seasonalLinkNow()
     {
@@ -261,7 +273,7 @@ public interface EventListConfig extends Config
         name = "Test API Now",
         description = "Toggle on to validate backend connectivity and identity",
         section = seasonalSection,
-        position = 5
+        position = 6
     )
     default boolean seasonalTestApiNow()
     {
@@ -273,7 +285,7 @@ public interface EventListConfig extends Config
         name = "Flush Queue Now",
         description = "Toggle on to immediately attempt sending all queued submissions",
         section = seasonalSection,
-        position = 6
+        position = 7
     )
     default boolean seasonalFlushQueueNow()
     {
@@ -283,9 +295,9 @@ public interface EventListConfig extends Config
     @ConfigItem(
         keyName = "seasonalIncludeScreenshot",
         name = "Attach Drop Screenshot",
-        description = "Attach a screenshot payload when seasonal loot is captured (larger payloads)",
+        description = "Attach a screenshot payload when seasonal loot is captured (recommended on)",
         section = seasonalSection,
-        position = 7
+        position = 8
     )
     default boolean seasonalIncludeScreenshot()
     {
@@ -293,11 +305,24 @@ public interface EventListConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "seasonalDropsSheetId",
-        name = "Drops Sheet ID",
-        description = "Optional Google Sheet ID for local drop/boss eligibility map",
+        keyName = "seasonalAllowedDrops",
+        name = "Allowed Drops",
+        description = "Comma/newline separated boss_key:item_id pairs. Example: abyssal_sire:13263, cerberus:13229",
         section = seasonalSection,
-        position = 8
+        position = 9
+    )
+    default String seasonalAllowedDrops()
+    {
+        return "";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDropsSheetId",
+        name = "Drops Sheet ID (legacy)",
+        description = "Legacy field, no longer required for seasonal submissions",
+        section = seasonalSection,
+        position = 10,
+        hidden = true
     )
     default String seasonalDropsSheetId()
     {
@@ -306,10 +331,11 @@ public interface EventListConfig extends Config
 
     @ConfigItem(
         keyName = "seasonalDropsSheetName",
-        name = "Drops Sheet Tab",
-        description = "Optional sheet tab for seasonal drops map",
+        name = "Drops Sheet Tab (legacy)",
+        description = "Legacy field, no longer required for seasonal submissions",
         section = seasonalSection,
-        position = 9
+        position = 11,
+        hidden = true
     )
     default String seasonalDropsSheetName()
     {
@@ -321,7 +347,7 @@ public interface EventListConfig extends Config
         name = "Debug Boss Key",
         description = "Boss key used by debug payload button",
         section = seasonalSection,
-        position = 10
+        position = 12
     )
     default String seasonalDebugBossKey()
     {
@@ -333,7 +359,7 @@ public interface EventListConfig extends Config
         name = "Debug Item ID",
         description = "Item ID used by debug payload button",
         section = seasonalSection,
-        position = 11
+        position = 13
     )
     default int seasonalDebugItemId()
     {
@@ -345,7 +371,7 @@ public interface EventListConfig extends Config
         name = "Debug Quantity",
         description = "Item quantity used by debug payload button",
         section = seasonalSection,
-        position = 12
+        position = 14
     )
     @Range(min = 1, max = 1000)
     default int seasonalDebugQuantity()

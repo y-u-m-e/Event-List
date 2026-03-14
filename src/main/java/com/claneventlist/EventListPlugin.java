@@ -53,6 +53,9 @@ public class EventListPlugin extends Plugin
     @Inject
     private SeasonalReporterService seasonalReporterService;
 
+    @Inject
+    private SeasonalPassphraseOverlay seasonalPassphraseOverlay;
+
     private EventListOverlay overlay;
     private EventListPanel panel;
     private NavigationButton navButton;
@@ -66,6 +69,7 @@ public class EventListPlugin extends Plugin
         // Create overlay
         overlay = new EventListOverlay(config, sheetService);
         overlayManager.add(overlay);
+        overlayManager.add(seasonalPassphraseOverlay);
 
         // Create panel
         panel = new EventListPanel(
@@ -104,6 +108,7 @@ public class EventListPlugin extends Plugin
         log.info("Clan Event List plugin stopped");
 
         overlayManager.remove(overlay);
+        overlayManager.remove(seasonalPassphraseOverlay);
         clientToolbar.removeNavigation(navButton);
 
         initialized = false;
@@ -152,6 +157,11 @@ public class EventListPlugin extends Plugin
         if (event.getKey().equals("seasonalEnabled") || event.getKey().equals("seasonalDryRun"))
         {
             updateSeasonalTelemetry();
+        }
+
+        if (event.getKey().equals("seasonalAllowedDrops"))
+        {
+            refreshSeasonalManifest();
         }
 
         if (event.getKey().equals("seasonalLinkNow") && "true".equals(event.getNewValue()))

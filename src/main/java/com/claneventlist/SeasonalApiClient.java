@@ -19,16 +19,18 @@ import java.util.List;
 @Singleton
 public class SeasonalApiClient
 {
-    private static final String API_BASE_URL = "https://api.emuy.gg";
+    private static final String DEFAULT_API_BASE_URL = "https://api.emuy.gg";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private final OkHttpClient httpClient;
+    private final EventListConfig config;
     private final Gson gson = new Gson();
 
     @Inject
-    public SeasonalApiClient(OkHttpClient httpClient)
+    public SeasonalApiClient(OkHttpClient httpClient, EventListConfig config)
     {
         this.httpClient = httpClient;
+        this.config = config;
     }
 
     public SeasonalApiResult submitBulk(SeasonalIdentity identity, List<SeasonalSubmission> submissions)
@@ -38,7 +40,7 @@ public class SeasonalApiClient
         String body = gson.toJson(payload);
 
         Request request = new Request.Builder()
-            .url(API_BASE_URL + "/clan/seasonal-event/submissions/bulk")
+            .url(apiBaseUrl() + "/clan/seasonal-event/submissions/bulk")
             .post(RequestBody.create(JSON, body))
             .header("User-Agent", "RuneLite Clan Event List")
             .build();
@@ -56,7 +58,7 @@ public class SeasonalApiClient
     {
         String body = gson.toJson(submission);
         Request request = new Request.Builder()
-            .url(API_BASE_URL + "/clan/seasonal-event/submissions")
+            .url(apiBaseUrl() + "/clan/seasonal-event/submissions")
             .post(RequestBody.create(JSON, body))
             .header("User-Agent", "RuneLite Clan Event List")
             .build();
@@ -66,7 +68,7 @@ public class SeasonalApiClient
     public SeasonalApiResult checkState(SeasonalIdentity identity)
     {
         Request request = new Request.Builder()
-            .url(API_BASE_URL + "/clan/seasonal-event/state")
+            .url(apiBaseUrl() + "/clan/seasonal-event/state")
             .get()
             .header("User-Agent", "RuneLite Clan Event List")
             .build();
@@ -76,7 +78,7 @@ public class SeasonalApiClient
     public JsonObject fetchStateJson(SeasonalIdentity identity)
     {
         Request request = new Request.Builder()
-            .url(API_BASE_URL + "/clan/seasonal-event/state")
+            .url(apiBaseUrl() + "/clan/seasonal-event/state")
             .get()
             .header("User-Agent", "RuneLite Clan Event List")
             .build();
@@ -162,6 +164,21 @@ public class SeasonalApiClient
         {
             return new SeasonalApiResult(false, true, false, false, false, 0, ex.getMessage());
         }
+    }
+
+    private String apiBaseUrl()
+    {
+        String configured = config.seasonalApiEndpoint();
+        if (configured == null || configured.trim().isEmpty())
+        {
+            return DEFAULT_API_BASE_URL;
+        }
+        String base = configured.trim();
+        while (base.endsWith("/"))
+        {
+            base = base.substring(0, base.length() - 1);
+        }
+        return base.isEmpty() ? DEFAULT_API_BASE_URL : base;
     }
 
     private void addBosses(JsonObject source, SeasonalEligibilityManifest manifest, String key)

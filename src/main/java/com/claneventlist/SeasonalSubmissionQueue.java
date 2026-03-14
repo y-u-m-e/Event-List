@@ -88,7 +88,7 @@ public class SeasonalSubmissionQueue
         pruneDedupe();
         String key = dedupeKey(
             submission.getEventId(),
-            submission.getIngestId(),
+            submission.getEventPassphrase(),
             submission.getClientInstanceId(),
             submission.getBossKey(),
             submission.getItemId(),
@@ -167,7 +167,7 @@ public class SeasonalSubmissionQueue
 
     public static String dedupeKey(
         String eventId,
-        String ingestId,
+        String eventPassphrase,
         String clientInstanceId,
         String bossKey,
         int itemId,
@@ -176,7 +176,7 @@ public class SeasonalSubmissionQueue
     {
         Instant instant = Instant.parse(droppedAtIso);
         ZonedDateTime bucketHour = instant.atZone(ZoneOffset.UTC).truncatedTo(ChronoUnit.HOURS);
-        return eventId + "|" + ingestId + "|" + clientInstanceId + "|" + bossKey + "|" + itemId + "|"
+        return eventId + "|" + eventPassphrase + "|" + clientInstanceId + "|" + bossKey + "|" + itemId + "|"
             + bucketHour.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 

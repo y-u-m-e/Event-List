@@ -13,7 +13,8 @@ public class SeasonalReporterServiceTest
     {
         SeasonalSubmission submission = new SeasonalSubmission(
             "seasonal-2026-q2",
-            "ingest-team-a",
+            "zeber_is_stinky",
+            null,
             SeasonalReporterService.PLUGIN_KEYWORD,
             "client-uuid-1",
             "cerberus",
@@ -21,16 +22,18 @@ public class SeasonalReporterServiceTest
             1,
             "2026-04-08T21:17:31.000Z",
             "plugin",
+            "Yume",
             "runelite:123:345:678",
             null
         );
 
         String json = new Gson().toJson(submission);
         Assert.assertTrue(json.contains("\"event_id\":\"seasonal-2026-q2\""));
-        Assert.assertTrue(json.contains("\"ingest_id\":\"ingest-team-a\""));
+        Assert.assertTrue(json.contains("\"event_passphrase\":\"zeber_is_stinky\""));
         Assert.assertTrue(json.contains("\"plugin_keyword\":\"if_event_list_rl_v1\""));
         Assert.assertTrue(json.contains("\"client_instance_id\":\"client-uuid-1\""));
         Assert.assertTrue(json.contains("\"boss_key\":\"cerberus\""));
+        Assert.assertTrue(json.contains("\"player_rsn\":\"Yume\""));
         Assert.assertTrue(json.contains("\"source_ref\":\"runelite:123:345:678\""));
     }
 
@@ -52,9 +55,9 @@ public class SeasonalReporterServiceTest
         String ts2 = Instant.parse("2026-04-08T21:59:59.000Z").toString();
         String ts3 = Instant.parse("2026-04-08T22:00:00.000Z").toString();
 
-        String key1 = SeasonalSubmissionQueue.dedupeKey("event1", "ingestA", "clientX", "cerberus", 13229, ts1);
-        String key2 = SeasonalSubmissionQueue.dedupeKey("event1", "ingestA", "clientX", "cerberus", 13229, ts2);
-        String key3 = SeasonalSubmissionQueue.dedupeKey("event1", "ingestA", "clientX", "cerberus", 13229, ts3);
+        String key1 = SeasonalSubmissionQueue.dedupeKey("event1", "passphraseA", "clientX", "cerberus", 13229, ts1);
+        String key2 = SeasonalSubmissionQueue.dedupeKey("event1", "passphraseA", "clientX", "cerberus", 13229, ts2);
+        String key3 = SeasonalSubmissionQueue.dedupeKey("event1", "passphraseA", "clientX", "cerberus", 13229, ts3);
 
         Assert.assertEquals(key1, key2);
         Assert.assertNotEquals(key1, key3);
@@ -63,20 +66,22 @@ public class SeasonalReporterServiceTest
     @Test
     public void testTamperGuardIdentityComesFromLinkedIdentity()
     {
-        SeasonalIdentity identity = new SeasonalIdentity("event_server", "ingest_server", SeasonalReporterService.PLUGIN_KEYWORD, "client-uuid");
+        SeasonalIdentity identity = new SeasonalIdentity("event_server", "passphrase_server", SeasonalReporterService.PLUGIN_KEYWORD, "client-uuid");
         SeasonalSubmission submission = SeasonalReporterService.buildSubmission(
             identity,
             "abyssal_sire",
             123,
             2,
             "2026-04-08T21:17:31.000Z",
+            "Yume",
             "runelite:source"
         );
 
         Assert.assertEquals("event_server", submission.getEventId());
-        Assert.assertEquals("ingest_server", submission.getIngestId());
+        Assert.assertEquals("passphrase_server", submission.getEventPassphrase());
         Assert.assertEquals("if_event_list_rl_v1", submission.getPluginKeyword());
         Assert.assertEquals("client-uuid", submission.getClientInstanceId());
+        Assert.assertEquals("Yume", submission.getPlayerRsn());
         Assert.assertEquals("plugin", submission.getSource());
     }
 }
