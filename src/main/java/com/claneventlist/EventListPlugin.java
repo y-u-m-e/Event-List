@@ -159,7 +159,7 @@ public class EventListPlugin extends Plugin
             updateSeasonalTelemetry();
         }
 
-        if (event.getKey().equals("seasonalAllowedDrops"))
+        if (event.getKey().equals("seasonalAllowedDrops") || event.getKey().equals("seasonalAllowedDropsJson"))
         {
             refreshSeasonalManifest();
         }

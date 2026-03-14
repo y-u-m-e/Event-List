@@ -305,11 +305,24 @@ public interface EventListConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "seasonalAllowedDrops",
-        name = "Allowed Drops",
-        description = "Comma/newline separated boss_key:item_id pairs. Example: abyssal_sire:13263, cerberus:13229",
+        keyName = "seasonalAllowedDropsJson",
+        name = "Allowed Drops JSON",
+        description = "Local saved JSON map. Example: {\"cerberus\":[13229],\"abyssal_sire\":[13263]}",
         section = seasonalSection,
         position = 9
+    )
+    default String seasonalAllowedDropsJson()
+    {
+        return "";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalAllowedDrops",
+        name = "Allowed Drops (legacy)",
+        description = "Legacy comma/newline boss_key:item_id pairs",
+        section = seasonalSection,
+        position = 10,
+        hidden = true
     )
     default String seasonalAllowedDrops()
     {
@@ -321,7 +334,7 @@ public interface EventListConfig extends Config
         name = "Drops Sheet ID (legacy)",
         description = "Legacy field, no longer required for seasonal submissions",
         section = seasonalSection,
-        position = 10,
+        position = 11,
         hidden = true
     )
     default String seasonalDropsSheetId()
@@ -334,7 +347,7 @@ public interface EventListConfig extends Config
         name = "Drops Sheet Tab (legacy)",
         description = "Legacy field, no longer required for seasonal submissions",
         section = seasonalSection,
-        position = 11,
+        position = 12,
         hidden = true
     )
     default String seasonalDropsSheetName()
@@ -347,7 +360,7 @@ public interface EventListConfig extends Config
         name = "Debug Boss Key",
         description = "Boss key used by debug payload button",
         section = seasonalSection,
-        position = 12
+        position = 13
     )
     default String seasonalDebugBossKey()
     {
@@ -359,7 +372,7 @@ public interface EventListConfig extends Config
         name = "Debug Item ID",
         description = "Item ID used by debug payload button",
         section = seasonalSection,
-        position = 13
+        position = 14
     )
     default int seasonalDebugItemId()
     {
@@ -371,7 +384,7 @@ public interface EventListConfig extends Config
         name = "Debug Quantity",
         description = "Item quantity used by debug payload button",
         section = seasonalSection,
-        position = 14
+        position = 15
     )
     @Range(min = 1, max = 1000)
     default int seasonalDebugQuantity()

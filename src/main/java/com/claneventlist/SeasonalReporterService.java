@@ -6,7 +6,6 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.ui.DrawManager;
-import okhttp3.OkHttpClient;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -22,6 +21,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 @Slf4j
 @Singleton
@@ -35,7 +37,6 @@ public class SeasonalReporterService
     private final ConfigManager configManager;
     private final Client client;
     private final DrawManager drawManager;
-    private final OkHttpClient httpClient;
     private final SeasonalApiClient apiClient;
     private final SeasonalSubmissionQueue queue;
     private final SeasonalTelemetry telemetry = new SeasonalTelemetry();
@@ -51,7 +52,6 @@ public class SeasonalReporterService
         ConfigManager configManager,
         Client client,
         DrawManager drawManager,
-        OkHttpClient httpClient,
         SeasonalApiClient apiClient,
         SeasonalSubmissionQueue queue
     )
@@ -60,7 +60,6 @@ public class SeasonalReporterService
         this.configManager = configManager;
         this.client = client;
         this.drawManager = drawManager;
-        this.httpClient = httpClient;
         this.apiClient = apiClient;
         this.queue = queue;
     }
@@ -302,22 +301,28 @@ public class SeasonalReporterService
 
         if (config.seasonalDryRun())
         {
-            telemetry.setLastApiResponse("Dry run debug drop generated");
+            telemetry.setLastApiResponse("Dry run ON: debug drop generated but NOT sent");
             return;
         }
 
         queue.enqueueIfNotDuplicate(submission);
         queue.saveToDisk();
         telemetry.setQueuedCount(queue.queueSize());
-        telemetry.setLastApiResponse("Debug drop queued");
+        telemetry.setLastApiResponse("Debug drop queued and sending now");
+        processQueue();
     }
 
     public void refreshManifest()
     {
-        parseAllowedDropsConfig(config.seasonalAllowedDrops());
+        parseAllowedDropsJson(config.seasonalAllowedDropsJson());
         if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty())
         {
-            telemetry.setManifestStatus("No local drop config (nothing will be sent)");
+            // Backward compatible with existing installs.
+            parseAllowedDropsConfig(config.seasonalAllowedDrops());
+        }
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty())
+        {
+            telemetry.setManifestStatus("No local allowed-drop JSON configured");
             return;
         }
         int mappedItems = allowedDropsByBoss.values().stream().mapToInt(Set::size).sum() + allowedAnyBossItems.size();
@@ -549,6 +554,84 @@ public class SeasonalReporterService
         manifest.setLoadedAtEpochMs(System.currentTimeMillis());
     }
 
+    private void parseAllowedDropsJson(String rawJson)
+    {
+        allowedDropsByBoss.clear();
+        allowedAnyBossItems.clear();
+        manifest = new SeasonalEligibilityManifest();
+        String raw = rawJson == null ? "" : rawJson.trim();
+        if (raw.isEmpty())
+        {
+            return;
+        }
+
+        JsonObject root;
+        try
+        {
+            root = new JsonParser().parse(raw).getAsJsonObject();
+        }
+        catch (Exception ex)
+        {
+            telemetry.setLastError("Allowed Drops JSON is invalid");
+            return;
+        }
+
+        if (root.has("_any") && root.get("_any").isJsonArray())
+        {
+            JsonArray anyItems = root.getAsJsonArray("_any");
+            for (int i = 0; i < anyItems.size(); i++)
+            {
+                try
+                {
+                    Integer itemId = anyItems.get(i).getAsInt();
+                    allowedAnyBossItems.add(itemId);
+                    manifest.getEligibleItemIds().add(itemId);
+                }
+                catch (Exception ignored)
+                {
+                    // Ignore malformed entries.
+                }
+            }
+        }
+
+        int accepted = 0;
+        for (String bossName : root.keySet())
+        {
+            if (bossName == null || bossName.trim().isEmpty() || "_any".equalsIgnoreCase(bossName))
+            {
+                continue;
+            }
+            if (!root.get(bossName).isJsonArray())
+            {
+                continue;
+            }
+            String bossKey = normalizeBossKey(bossName);
+            JsonArray items = root.getAsJsonArray(bossName);
+            for (int i = 0; i < items.size(); i++)
+            {
+                try
+                {
+                    Integer itemId = items.get(i).getAsInt();
+                    allowedDropsByBoss.computeIfAbsent(bossKey, k -> new HashSet<>()).add(itemId);
+                    manifest.getEligibleBossKeys().add(bossKey);
+                    manifest.getEligibleItemIds().add(itemId);
+                    accepted++;
+                }
+                catch (Exception ignored)
+                {
+                    // Ignore malformed entries.
+                }
+            }
+        }
+
+        if (accepted == 0 && allowedAnyBossItems.isEmpty())
+        {
+            telemetry.setLastError("Allowed Drops JSON parsed but no valid entries found");
+            return;
+        }
+        manifest.setLoadedAtEpochMs(System.currentTimeMillis());
+    }
+
     private Integer parseIntSafe(String value)
     {
         try
@@ -560,5 +643,6 @@ public class SeasonalReporterService
             return null;
         }
     }
+
 }
 
