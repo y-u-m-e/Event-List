@@ -37,5 +37,8 @@ public class SeasonalSubmission
 
     @SerializedName("source_ref")
     private String sourceRef;
+
+    @SerializedName("screenshot_base64")
+    private String screenshotBase64;
 }
 

@@ -5,11 +5,19 @@ import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.game.ItemStack;
+import net.runelite.client.ui.DrawManager;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -26,6 +34,8 @@ public class SeasonalReporterService
     private final EventListConfig config;
     private final ConfigManager configManager;
     private final Client client;
+    private final DrawManager drawManager;
+    private final OkHttpClient httpClient;
     private final SeasonalApiClient apiClient;
     private final SeasonalSubmissionQueue queue;
     private final SeasonalTelemetry telemetry = new SeasonalTelemetry();
@@ -38,6 +48,8 @@ public class SeasonalReporterService
         EventListConfig config,
         ConfigManager configManager,
         Client client,
+        DrawManager drawManager,
+        OkHttpClient httpClient,
         SeasonalApiClient apiClient,
         SeasonalSubmissionQueue queue
     )
@@ -45,6 +57,8 @@ public class SeasonalReporterService
         this.config = config;
         this.configManager = configManager;
         this.client = client;
+        this.drawManager = drawManager;
+        this.httpClient = httpClient;
         this.apiClient = apiClient;
         this.queue = queue;
     }
@@ -77,7 +91,7 @@ public class SeasonalReporterService
         SeasonalIdentity identity = getIdentity();
         if (!identity.isLinked())
         {
-            telemetry.setLastError("Seasonal plugin not linked (connect code required).");
+            telemetry.setLastError("Seasonal reporter is not configured (event id + ingest key required).");
             refreshLinkStatus();
             return;
         }
@@ -89,6 +103,7 @@ public class SeasonalReporterService
             return;
         }
 
+        List<SeasonalSubmission> captured = new ArrayList<>();
         for (ItemStack item : event.getItems())
         {
             if (!isLocallyEligible(bossKey, item.getId()))
@@ -104,22 +119,32 @@ public class SeasonalReporterService
                 Instant.now().toString(),
                 buildSourceRef(client.getAccountHash(), client.getWorld(), tickCounter, item.getId(), item.getQuantity())
             );
-
-            if (config.seasonalDryRun())
-            {
-                telemetry.setLastApiResponse("Dry run captured: " + bossKey + " item=" + item.getId() + " x" + item.getQuantity());
-                continue;
-            }
-
-            boolean accepted = queue.enqueueIfNotDuplicate(submission);
-            if (!accepted)
-            {
-                telemetry.setLastApiResponse("Duplicate filtered locally");
-            }
+            captured.add(submission);
         }
 
-        telemetry.setQueuedCount(queue.queueSize());
-        queue.saveToDisk();
+        if (captured.isEmpty())
+        {
+            return;
+        }
+
+        if (config.seasonalDryRun())
+        {
+            SeasonalSubmission first = captured.get(0);
+            telemetry.setLastApiResponse("Dry run captured: " + bossKey + " item=" + first.getItemId() + " x" + first.getQuantity());
+            return;
+        }
+
+        if (config.seasonalIncludeScreenshot())
+        {
+            drawManager.requestNextFrameListener((java.awt.Image image) ->
+            {
+                String screenshot = encodeScreenshot(image);
+                enqueueCapturedSubmissions(captured, screenshot);
+            });
+            return;
+        }
+
+        enqueueCapturedSubmissions(captured, null);
     }
 
     public void processQueue()
@@ -256,11 +281,17 @@ public class SeasonalReporterService
             return;
         }
 
+        String debugBossKey = normalizeBossKey(config.seasonalDebugBossKey());
+        if (debugBossKey.isEmpty())
+        {
+            debugBossKey = "debug_boss";
+        }
+
         SeasonalSubmission submission = buildSubmission(
             identity,
-            "debug_boss",
-            995,
-            1,
+            debugBossKey,
+            Math.max(1, config.seasonalDebugItemId()),
+            Math.max(1, config.seasonalDebugQuantity()),
             Instant.now().toString(),
             "runelite:debug:" + System.currentTimeMillis()
         );
@@ -279,6 +310,15 @@ public class SeasonalReporterService
 
     public void refreshManifest()
     {
+        SeasonalEligibilityManifest sheetManifest = loadManifestFromSheet();
+        if (sheetManifest != null)
+        {
+            manifest = sheetManifest;
+            telemetry.setManifestStatus("Manifest loaded from Google Sheet: bosses=" + manifest.readonlyBossKeys().size()
+                + ", items=" + manifest.readonlyItemIds().size());
+            return;
+        }
+
         SeasonalIdentity identity = getIdentity();
         if (!identity.isLinked())
         {
@@ -349,6 +389,117 @@ public class SeasonalReporterService
             .replaceAll("^_+", "")
             .replaceAll("_+$", "");
         return cleaned;
+    }
+
+    private void enqueueCapturedSubmissions(List<SeasonalSubmission> submissions, String screenshotBase64)
+    {
+        for (SeasonalSubmission submission : submissions)
+        {
+            if (screenshotBase64 != null && !screenshotBase64.isEmpty())
+            {
+                submission.setScreenshotBase64(screenshotBase64);
+            }
+            boolean accepted = queue.enqueueIfNotDuplicate(submission);
+            if (!accepted)
+            {
+                telemetry.setLastApiResponse("Duplicate filtered locally");
+            }
+        }
+        queue.saveToDisk();
+        telemetry.setQueuedCount(queue.queueSize());
+    }
+
+    private String encodeScreenshot(java.awt.Image image)
+    {
+        if (image == null)
+        {
+            return null;
+        }
+        try
+        {
+            BufferedImage buffered;
+            if (image instanceof BufferedImage)
+            {
+                buffered = (BufferedImage) image;
+            }
+            else
+            {
+                buffered = new BufferedImage(image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+                java.awt.Graphics2D g2d = buffered.createGraphics();
+                g2d.drawImage(image, 0, 0, null);
+                g2d.dispose();
+            }
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(buffered, "png", output);
+            String base64 = Base64.getEncoder().encodeToString(output.toByteArray());
+            return "data:image/png;base64," + base64;
+        }
+        catch (Exception ex)
+        {
+            log.debug("Failed encoding screenshot: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    private SeasonalEligibilityManifest loadManifestFromSheet()
+    {
+        String sheetId = config.seasonalDropsSheetId();
+        if (sheetId == null || sheetId.trim().isEmpty())
+        {
+            return null;
+        }
+        String sheetName = config.seasonalDropsSheetName();
+        String url = (sheetName != null && !sheetName.trim().isEmpty())
+            ? String.format("https://docs.google.com/spreadsheets/d/%s/gviz/tq?tqx=out:csv&sheet=%s", sheetId.trim(), sheetName.trim())
+            : String.format("https://docs.google.com/spreadsheets/d/%s/gviz/tq?tqx=out:csv", sheetId.trim());
+
+        Request request = new Request.Builder().url(url).header("User-Agent", "RuneLite").build();
+        try (Response response = httpClient.newCall(request).execute())
+        {
+            okhttp3.ResponseBody body = response.body();
+            if (!response.isSuccessful() || body == null)
+            {
+                return null;
+            }
+            String csv = body.string();
+            String[] lines = csv.split("\\r?\\n");
+            SeasonalEligibilityManifest out = new SeasonalEligibilityManifest();
+            for (int i = 1; i < lines.length; i++)
+            {
+                String line = lines[i];
+                if (line == null || line.trim().isEmpty())
+                {
+                    continue;
+                }
+                String[] fields = line.split(",");
+                if (fields.length < 2)
+                {
+                    continue;
+                }
+                String boss = String.valueOf(fields[0]).trim().toLowerCase(Locale.US);
+                int itemId;
+                try
+                {
+                    itemId = Integer.parseInt(String.valueOf(fields[1]).trim());
+                }
+                catch (Exception ignored)
+                {
+                    continue;
+                }
+                if (!boss.isEmpty())
+                {
+                    out.getEligibleBossKeys().add(boss);
+                }
+                out.getEligibleItemIds().add(itemId);
+            }
+            out.setLoadedAtEpochMs(System.currentTimeMillis());
+            return out;
+        }
+        catch (Exception ex)
+        {
+            log.debug("Failed loading seasonal sheet manifest: {}", ex.getMessage());
+            return null;
+        }
     }
 
     private void handleSingles(SeasonalIdentity identity, List<SeasonalQueueItem> items)

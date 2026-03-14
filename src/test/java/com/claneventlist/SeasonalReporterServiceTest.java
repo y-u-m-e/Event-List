@@ -21,7 +21,8 @@ public class SeasonalReporterServiceTest
             1,
             "2026-04-08T21:17:31.000Z",
             "plugin",
-            "runelite:123:345:678"
+            "runelite:123:345:678",
+            null
         );
 
         String json = new Gson().toJson(submission);

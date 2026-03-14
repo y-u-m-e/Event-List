@@ -279,5 +279,78 @@ public interface EventListConfig extends Config
     {
         return false;
     }
+
+    @ConfigItem(
+        keyName = "seasonalIncludeScreenshot",
+        name = "Attach Drop Screenshot",
+        description = "Attach a screenshot payload when seasonal loot is captured (larger payloads)",
+        section = seasonalSection,
+        position = 7
+    )
+    default boolean seasonalIncludeScreenshot()
+    {
+        return false;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDropsSheetId",
+        name = "Drops Sheet ID",
+        description = "Optional Google Sheet ID for local drop/boss eligibility map",
+        section = seasonalSection,
+        position = 8
+    )
+    default String seasonalDropsSheetId()
+    {
+        return "";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDropsSheetName",
+        name = "Drops Sheet Tab",
+        description = "Optional sheet tab for seasonal drops map",
+        section = seasonalSection,
+        position = 9
+    )
+    default String seasonalDropsSheetName()
+    {
+        return "";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDebugBossKey",
+        name = "Debug Boss Key",
+        description = "Boss key used by debug payload button",
+        section = seasonalSection,
+        position = 10
+    )
+    default String seasonalDebugBossKey()
+    {
+        return "debug_boss";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDebugItemId",
+        name = "Debug Item ID",
+        description = "Item ID used by debug payload button",
+        section = seasonalSection,
+        position = 11
+    )
+    default int seasonalDebugItemId()
+    {
+        return 995;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDebugQuantity",
+        name = "Debug Quantity",
+        description = "Item quantity used by debug payload button",
+        section = seasonalSection,
+        position = 12
+    )
+    @Range(min = 1, max = 1000)
+    default int seasonalDebugQuantity()
+    {
+        return 1;
+    }
 }
 
