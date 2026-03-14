@@ -9,10 +9,13 @@ A RuneLite plugin that displays clan events from a Google Sheet with an in-game 
 - **Google Sheets Integration** - Fetch event data from any published Google Sheet
 - **In-Game Overlay** - Shows the next upcoming event with countdown timer
 - **Side Panel** - Scrollable list of all upcoming events with full details
+- **Subpanels** - Switch between `Events` and `Seasonal` tabs inside the panel
 - **Auto-Refresh** - Automatically updates event data at configurable intervals
 - **Customizable** - Configure colors, event limits, and display options
 - **Event Status** - Visual highlighting for imminent and currently happening events
 - **Link Support** - Add URLs to events for Discord links, sign-up forms, etc.
+- **Seasonal Reporter (Optional)** - Captures boss loot and submits to Iron Forged seasonal backend with queue/retry
+- **Seasonal Debug Controls** - Queue fake drop, test API, refresh manifest, and flush queue from panel
 
 ---
 
@@ -109,6 +112,19 @@ Copy the long string between `/d/` and `/edit`.
 | Max Events Shown | Limit events displayed (1-50) |
 | Show Past Events | Include completed events |
 
+<br>
+
+### Seasonal Reporter Settings
+
+| Setting | Description |
+|:--------|:------------|
+| Enable Seasonal Reporter | Opt-in data submission for seasonal drops |
+| Dry Run Mode | Capture and log candidates without API calls |
+| Connect Code | One-time admin-issued link code |
+| Link/Re-link | Exchanges connect code for secure linked session |
+| Test API | Runs backend state check with linked identity |
+| Flush Queue | Immediately attempts sending queued submissions |
+
 ---
 
 ## Supported Formats
@@ -144,6 +160,64 @@ Copy the long string between `/d/` and `/edit`.
 Times in the Google Sheet must be in **UTC**. The plugin converts them to your local timezone automatically.
 
 Use a [UTC Time Converter](https://www.timeanddate.com/worldclock/converter.html) when entering event times.
+
+### Seasonal reporter not sending?
+
+1. Ensure **Enable Seasonal Reporter** is enabled
+2. Use **Link/Re-link** after entering a valid connect code
+3. Keep **Dry Run Mode** off for real submissions
+4. Check panel footer tooltip for `Last API` and `Last error`
+
+---
+
+## Seasonal Linking Flow
+
+1. Admin generates a one-time connect code from Iron Forged website/admin tools.
+2. Player enters connect code in plugin config and clicks **Link/Re-link**.
+3. Plugin calls `POST /clan/seasonal-event/plugin/bootstrap`.
+4. Backend returns locked identity (`event_id`, `player_discord_id`, `team_id`) plus opaque `session_token`.
+5. Plugin stores only opaque token + server identity metadata locally and uses that identity for all submissions.
+
+No editable local drop list, team id, event id, or scoring rules are used by the plugin. Backend remains source of truth.
+
+---
+
+## Seasonal Queue and Retry
+
+- Captured loot is enqueued locally and persisted to RuneLite directory.
+- Queue is processed in background every 10 seconds.
+- Bulk endpoint is preferred; plugin falls back to single submission endpoint when bulk is unavailable.
+- Retry uses exponential backoff on transient failures.
+- Validation failures are moved to dead-letter storage.
+- 401/403 pauses sending and requires re-link.
+- Optional eligibility manifest can be fetched from backend state for local prefiltering.
+
+### Eligibility Manifest (Zero-Trust Friendly)
+
+- Plugin can fetch server configuration/eligibility from `GET /clan/seasonal-event/state`.
+- If server includes eligibility arrays (boss/item lists), plugin uses them as read-only local prefilter.
+- Local prefilter is optimization only; backend is still final authority for acceptance/rejection.
+- No editable local file is used to define trusted scoring or team identity.
+
+---
+
+## Manual Test Plan
+
+1. **Dry-run smoke test**
+   - Enable seasonal reporter + dry run, kill an NPC with loot.
+   - Expect: no network submission, panel seasonal status updates, no queue growth.
+2. **Link and submit**
+   - Enter valid connect code, click Link/Re-link, disable dry run, kill eligible boss.
+   - Expect: queued item appears then drains after scheduler run.
+3. **Retry behavior**
+   - Disconnect network temporarily and trigger drops.
+   - Expect: queued items stay queued and retry with backoff.
+4. **Auth expiry**
+   - Invalidate session server-side and trigger queue processing.
+   - Expect: auth pause + re-link warning.
+5. **Deduplication safety**
+   - Trigger repeated duplicate drop captures in same hour window.
+   - Expect: local duplicate filtering for same dedupe key.
 
 ---
 

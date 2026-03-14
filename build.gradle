@@ -3,7 +3,11 @@ plugins {
 }
 
 repositories {
-	mavenLocal()
+	mavenLocal {
+		content {
+			includeGroupByRegex("net\\.runelite.*")
+		}
+	}
 	maven {
 		url = 'https://repo.runelite.net'
 		content {

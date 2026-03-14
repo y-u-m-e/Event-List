@@ -3,10 +3,12 @@ package com.claneventlist;
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.task.Schedule;
@@ -34,6 +36,9 @@ public class EventListPlugin extends Plugin
     private EventListConfig config;
 
     @Inject
+    private ConfigManager configManager;
+
+    @Inject
     private OverlayManager overlayManager;
 
     @Inject
@@ -44,6 +49,9 @@ public class EventListPlugin extends Plugin
 
     @Inject
     private ScheduledExecutorService executorService;
+
+    @Inject
+    private SeasonalReporterService seasonalReporterService;
 
     private EventListOverlay overlay;
     private EventListPanel panel;
@@ -60,7 +68,16 @@ public class EventListPlugin extends Plugin
         overlayManager.add(overlay);
 
         // Create panel
-        panel = new EventListPanel(config, sheetService, this::refreshEvents);
+        panel = new EventListPanel(
+            config,
+            sheetService,
+            this::refreshEvents,
+            this::linkSeasonal,
+            this::testSeasonalApi,
+            this::flushSeasonalQueue,
+            this::refreshSeasonalManifest,
+            this::enqueueSeasonalDebugDrop
+        );
 
         // Create navigation button with icon
         BufferedImage icon = createCalendarIcon();
@@ -76,7 +93,9 @@ public class EventListPlugin extends Plugin
 
         // Initial fetch
         initialized = true;
+        seasonalReporterService.start();
         refreshEvents();
+        updateSeasonalTelemetry();
     }
 
     @Override
@@ -91,6 +110,7 @@ public class EventListPlugin extends Plugin
         overlay = null;
         panel = null;
         navButton = null;
+        seasonalReporterService.stop();
     }
 
     @Subscribe
@@ -128,6 +148,29 @@ public class EventListPlugin extends Plugin
                 panel.updateEvents();
             }
         }
+
+        if (event.getKey().equals("seasonalEnabled") || event.getKey().equals("seasonalDryRun"))
+        {
+            updateSeasonalTelemetry();
+        }
+
+        if (event.getKey().equals("seasonalLinkNow") && "true".equals(event.getNewValue()))
+        {
+            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "seasonalLinkNow", false);
+            linkSeasonal();
+        }
+
+        if (event.getKey().equals("seasonalTestApiNow") && "true".equals(event.getNewValue()))
+        {
+            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "seasonalTestApiNow", false);
+            testSeasonalApi();
+        }
+
+        if (event.getKey().equals("seasonalFlushQueueNow") && "true".equals(event.getNewValue()))
+        {
+            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "seasonalFlushQueueNow", false);
+            flushSeasonalQueue();
+        }
     }
 
     /**
@@ -155,6 +198,51 @@ public class EventListPlugin extends Plugin
                 panel.updateEvents();
             }
         }
+    }
+
+    /**
+     * Scheduled task to process seasonal queue in the background.
+     */
+    @Schedule(period = 10, unit = ChronoUnit.SECONDS)
+    public void scheduledSeasonalQueue()
+    {
+        if (!initialized)
+        {
+            return;
+        }
+
+        executorService.submit(() ->
+        {
+            seasonalReporterService.processQueue();
+            updateSeasonalTelemetry();
+        });
+    }
+
+    @Schedule(period = 5, unit = ChronoUnit.MINUTES)
+    public void scheduledSeasonalManifestRefresh()
+    {
+        if (!initialized)
+        {
+            return;
+        }
+        executorService.submit(() ->
+        {
+            seasonalReporterService.refreshManifest();
+            updateSeasonalTelemetry();
+        });
+    }
+
+    @Subscribe
+    public void onGameTick(GameTick gameTick)
+    {
+        seasonalReporterService.onGameTick();
+    }
+
+    @Subscribe
+    public void onNpcLootReceived(NpcLootReceived event)
+    {
+        seasonalReporterService.onNpcLootReceived(event);
+        updateSeasonalTelemetry();
     }
 
     /**
@@ -189,10 +277,11 @@ public class EventListPlugin extends Plugin
             try
             {
                 sheetService.fetchEvents(config.sheetId(), config.sheetName());
-                
+
                 if (panel != null)
                 {
                     panel.updateEvents();
+                    updateSeasonalTelemetry();
                 }
 
                 log.debug("Events refreshed successfully");
@@ -205,6 +294,59 @@ public class EventListPlugin extends Plugin
                     panel.showError("Failed to fetch events.<br>Check your Sheet ID.");
                 }
             }
+        });
+    }
+
+    private void updateSeasonalTelemetry()
+    {
+        if (panel != null)
+        {
+            panel.updateSeasonalTelemetry(seasonalReporterService.getTelemetry());
+        }
+    }
+
+    private void linkSeasonal()
+    {
+        executorService.submit(() ->
+        {
+            seasonalReporterService.linkWithConnectCode(config.seasonalConnectCode());
+            updateSeasonalTelemetry();
+        });
+    }
+
+    private void testSeasonalApi()
+    {
+        executorService.submit(() ->
+        {
+            seasonalReporterService.testApi();
+            updateSeasonalTelemetry();
+        });
+    }
+
+    private void flushSeasonalQueue()
+    {
+        executorService.submit(() ->
+        {
+            seasonalReporterService.flushQueueNow();
+            updateSeasonalTelemetry();
+        });
+    }
+
+    private void refreshSeasonalManifest()
+    {
+        executorService.submit(() ->
+        {
+            seasonalReporterService.refreshManifest();
+            updateSeasonalTelemetry();
+        });
+    }
+
+    private void enqueueSeasonalDebugDrop()
+    {
+        executorService.submit(() ->
+        {
+            seasonalReporterService.enqueueDebugDrop();
+            updateSeasonalTelemetry();
         });
     }
 

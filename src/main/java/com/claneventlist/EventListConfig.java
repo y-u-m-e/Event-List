@@ -34,6 +34,13 @@ public interface EventListConfig extends Config
     )
     String panelSection = "panelSection";
 
+    @ConfigSection(
+        name = "Seasonal Reporter",
+        description = "Submit seasonal boss drops to Iron Forged backend",
+        position = 3
+    )
+    String seasonalSection = "seasonalSection";
+
     // ========== Google Sheet Settings ==========
 
     @ConfigItem(
@@ -182,6 +189,93 @@ public interface EventListConfig extends Config
         position = 1
     )
     default boolean showPastEvents()
+    {
+        return false;
+    }
+
+    // ========== Seasonal Reporter ==========
+
+    @ConfigItem(
+        keyName = "seasonalEnabled",
+        name = "Enable Seasonal Reporter",
+        description = "Allow this plugin to send eligible seasonal drops to Iron Forged backend",
+        section = seasonalSection,
+        position = 0,
+        warning = "This feature sends loot metadata (boss, item id, quantity, timestamp) to an external Iron Forged API."
+    )
+    default boolean seasonalEnabled()
+    {
+        return false;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalDryRun",
+        name = "Dry Run Mode",
+        description = "Capture seasonal drops and log them without sending API requests",
+        section = seasonalSection,
+        position = 1
+    )
+    default boolean seasonalDryRun()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalEventId",
+        name = "Seasonal Event ID",
+        description = "Event identifier configured on the website (for example: seasonal-2026-q2)",
+        section = seasonalSection,
+        position = 2
+    )
+    default String seasonalEventId()
+    {
+        return "";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalConnectCode",
+        name = "Ingest Key",
+        description = "Manual ingest key provided by admin",
+        section = seasonalSection,
+        position = 3
+    )
+    default String seasonalConnectCode()
+    {
+        return "";
+    }
+
+    @ConfigItem(
+        keyName = "seasonalLinkNow",
+        name = "Validate Settings Now",
+        description = "Toggle on to validate event id + ingest key are configured",
+        section = seasonalSection,
+        position = 4
+    )
+    default boolean seasonalLinkNow()
+    {
+        return false;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalTestApiNow",
+        name = "Test API Now",
+        description = "Toggle on to validate backend connectivity and identity",
+        section = seasonalSection,
+        position = 5
+    )
+    default boolean seasonalTestApiNow()
+    {
+        return false;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalFlushQueueNow",
+        name = "Flush Queue Now",
+        description = "Toggle on to immediately attempt sending all queued submissions",
+        section = seasonalSection,
+        position = 6
+    )
+    default boolean seasonalFlushQueueNow()
     {
         return false;
     }
