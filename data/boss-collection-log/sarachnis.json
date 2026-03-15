@@ -1,0 +1,28 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Sarachnis",
+  "count": 5,
+  "unique_items": [
+    {
+      "item_id": 23517,
+      "item_name": "Giant egg sac(full)"
+    },
+    {
+      "item_id": 23525,
+      "item_name": "Jar of eyes"
+    },
+    {
+      "item_id": 33133,
+      "item_name": "Pristine spider silk"
+    },
+    {
+      "item_id": 23528,
+      "item_name": "Sarachnis cudgel"
+    },
+    {
+      "item_id": 23495,
+      "item_name": "Sraracha"
+    }
+  ]
+}

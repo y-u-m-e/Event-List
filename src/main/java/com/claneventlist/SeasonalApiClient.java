@@ -139,7 +139,7 @@ public class SeasonalApiClient
             }
             if (code == 401 || code == 403)
             {
-                return new SeasonalApiResult(false, false, false, true, false, code, "auth_failure");
+                return new SeasonalApiResult(false, false, false, true, false, code, "auth_failure:" + message);
             }
             if (code == 400)
             {
@@ -150,7 +150,7 @@ public class SeasonalApiClient
                 }
                 if (normalized.contains("identity mismatch") || normalized.contains("team") || normalized.contains("discord"))
                 {
-                    return new SeasonalApiResult(false, false, false, false, true, code, "identity_mismatch");
+                    return new SeasonalApiResult(false, false, false, false, true, code, "identity_mismatch:" + message);
                 }
                 return new SeasonalApiResult(false, false, false, false, false, code, "validation_error:" + message);
             }

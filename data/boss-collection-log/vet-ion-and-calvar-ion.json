@@ -1,0 +1,32 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Vet'ion and Calvar'ion",
+  "count": 6,
+  "unique_items": [
+    {
+      "item_id": 7158,
+      "item_name": "Dragon 2h sword"
+    },
+    {
+      "item_id": 11920,
+      "item_name": "Dragon pickaxe"
+    },
+    {
+      "item_id": 12601,
+      "item_name": "Ring of the gods"
+    },
+    {
+      "item_id": 27673,
+      "item_name": "Skull of vet'ion"
+    },
+    {
+      "item_id": 13179,
+      "item_name": "Vet'ion jr."
+    },
+    {
+      "item_id": 27684,
+      "item_name": "Voidwaker blade"
+    }
+  ]
+}

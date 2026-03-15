@@ -1,0 +1,28 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Thermonuclear smoke devil",
+  "count": 5,
+  "unique_items": [
+    {
+      "item_id": 3140,
+      "item_name": "Dragon chainbody"
+    },
+    {
+      "item_id": 25524,
+      "item_name": "Jar of smoke"
+    },
+    {
+      "item_id": 12002,
+      "item_name": "Occult necklace"
+    },
+    {
+      "item_id": 12648,
+      "item_name": "Pet smoke devil"
+    },
+    {
+      "item_id": 11998,
+      "item_name": "Smoke battlestaff"
+    }
+  ]
+}

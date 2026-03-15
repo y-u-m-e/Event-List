@@ -1,0 +1,32 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Doom of Mokhaiotl",
+  "count": 6,
+  "unique_items": [
+    {
+      "item_id": 31088,
+      "item_name": "Avernic treads"
+    },
+    {
+      "item_id": 31111,
+      "item_name": "Demon tear"
+    },
+    {
+      "item_id": 31130,
+      "item_name": "Dom"
+    },
+    {
+      "item_id": 31115,
+      "item_name": "Eye of ayak"
+    },
+    {
+      "item_id": 31109,
+      "item_name": "Mokhaiotl cloth"
+    },
+    {
+      "item_id": 31099,
+      "item_name": "Mokhaiotl waystone"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Chaos Fanatic",
+  "count": 3,
+  "unique_items": [
+    {
+      "item_id": 11931,
+      "item_name": "Malediction shard 1"
+    },
+    {
+      "item_id": 11928,
+      "item_name": "Odium shard 1"
+    },
+    {
+      "item_id": 11995,
+      "item_name": "Pet chaos elemental"
+    }
+  ]
+}

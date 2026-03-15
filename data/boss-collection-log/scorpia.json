@@ -1,0 +1,24 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Scorpia",
+  "count": 4,
+  "unique_items": [
+    {
+      "item_id": 7158,
+      "item_name": "Dragon 2h sword"
+    },
+    {
+      "item_id": 11933,
+      "item_name": "Malediction shard 3"
+    },
+    {
+      "item_id": 11930,
+      "item_name": "Odium shard 3"
+    },
+    {
+      "item_id": 13181,
+      "item_name": "Scorpia's offspring"
+    }
+  ]
+}

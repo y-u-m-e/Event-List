@@ -1,0 +1,20 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Giant Mole",
+  "count": 3,
+  "unique_items": [
+    {
+      "item_id": 12646,
+      "item_name": "Baby mole"
+    },
+    {
+      "item_id": 7416,
+      "item_name": "Mole claw"
+    },
+    {
+      "item_id": 7418,
+      "item_name": "Mole skin"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Yama",
+  "count": 11,
+  "unique_items": [
+    {
+      "item_id": 30795,
+      "item_name": "Barrel of demonic tallow (full)"
+    },
+    {
+      "item_id": 30775,
+      "item_name": "Chasm teleport scroll"
+    },
+    {
+      "item_id": 30805,
+      "item_name": "Dossier"
+    },
+    {
+      "item_id": 30763,
+      "item_name": "Forgotten lockbox"
+    },
+    {
+      "item_id": 30753,
+      "item_name": "Oathplate chest"
+    },
+    {
+      "item_id": 30750,
+      "item_name": "Oathplate helm"
+    },
+    {
+      "item_id": 30756,
+      "item_name": "Oathplate legs"
+    },
+    {
+      "item_id": 30765,
+      "item_name": "Oathplate shards"
+    },
+    {
+      "item_id": 30806,
+      "item_name": "Rite of vile transference"
+    },
+    {
+      "item_id": 30759,
+      "item_name": "Soulflame horn"
+    },
+    {
+      "item_id": 30888,
+      "item_name": "Yami"
+    }
+  ]
+}

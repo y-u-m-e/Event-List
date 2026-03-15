@@ -1,0 +1,24 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Zalcano",
+  "count": 4,
+  "unique_items": [
+    {
+      "item_id": 23953,
+      "item_name": "Crystal tool seed"
+    },
+    {
+      "item_id": 23760,
+      "item_name": "Smolcano"
+    },
+    {
+      "item_id": 6571,
+      "item_name": "Uncut onyx"
+    },
+    {
+      "item_id": 23908,
+      "item_name": "Zalcano shard"
+    }
+  ]
+}

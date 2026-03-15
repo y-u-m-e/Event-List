@@ -1,0 +1,36 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Grotesque Guardians",
+  "count": 7,
+  "unique_items": [
+    {
+      "item_id": 21730,
+      "item_name": "Black tourmaline core"
+    },
+    {
+      "item_id": 21726,
+      "item_name": "Granite dust"
+    },
+    {
+      "item_id": 21736,
+      "item_name": "Granite gloves"
+    },
+    {
+      "item_id": 21742,
+      "item_name": "Granite hammer"
+    },
+    {
+      "item_id": 21739,
+      "item_name": "Granite ring"
+    },
+    {
+      "item_id": 21745,
+      "item_name": "Jar of stone"
+    },
+    {
+      "item_id": 21748,
+      "item_name": "Noon"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "General Graardor",
+  "count": 8,
+  "unique_items": [
+    {
+      "item_id": 11836,
+      "item_name": "Bandos boots"
+    },
+    {
+      "item_id": 11832,
+      "item_name": "Bandos chestplate"
+    },
+    {
+      "item_id": 11812,
+      "item_name": "Bandos hilt"
+    },
+    {
+      "item_id": 11834,
+      "item_name": "Bandos tassets"
+    },
+    {
+      "item_id": 11818,
+      "item_name": "Godsword shard 1"
+    },
+    {
+      "item_id": 11820,
+      "item_name": "Godsword shard 2"
+    },
+    {
+      "item_id": 11822,
+      "item_name": "Godsword shard 3"
+    },
+    {
+      "item_id": 12650,
+      "item_name": "Pet general graardor"
+    }
+  ]
+}

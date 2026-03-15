@@ -1,0 +1,1828 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "note": "Boss names are parsed from the Collection log Bosses section. Items are sourced from Module:Collection_log/data.json where tabs match boss names.",
+  "boss_count": 55,
+  "item_count": 372,
+  "empty_boss_tabs": [],
+  "bosses": [
+    {
+      "boss": "Abyssal Sire",
+      "count": 9,
+      "unique_items": [
+        {
+          "item_id": 13265,
+          "item_name": "Abyssal dagger"
+        },
+        {
+          "item_id": 7979,
+          "item_name": "Abyssal head"
+        },
+        {
+          "item_id": 13262,
+          "item_name": "Abyssal orphan"
+        },
+        {
+          "item_id": 4151,
+          "item_name": "Abyssal whip"
+        },
+        {
+          "item_id": 13276,
+          "item_name": "Bludgeon axon"
+        },
+        {
+          "item_id": 13275,
+          "item_name": "Bludgeon claw"
+        },
+        {
+          "item_id": 13274,
+          "item_name": "Bludgeon spine"
+        },
+        {
+          "item_id": 13277,
+          "item_name": "Jar of miasma"
+        },
+        {
+          "item_id": 25624,
+          "item_name": "Unsired"
+        }
+      ]
+    },
+    {
+      "boss": "Alchemical Hydra",
+      "count": 11,
+      "unique_items": [
+        {
+          "item_id": 23077,
+          "item_name": "Alchemical hydra heads"
+        },
+        {
+          "item_id": 22804,
+          "item_name": "Dragon knife"
+        },
+        {
+          "item_id": 20849,
+          "item_name": "Dragon thrownaxe"
+        },
+        {
+          "item_id": 22983,
+          "item_name": "Hydra leather"
+        },
+        {
+          "item_id": 22988,
+          "item_name": "Hydra tail"
+        },
+        {
+          "item_id": 22966,
+          "item_name": "Hydra's claw"
+        },
+        {
+          "item_id": 22973,
+          "item_name": "Hydra's eye"
+        },
+        {
+          "item_id": 22971,
+          "item_name": "Hydra's fang"
+        },
+        {
+          "item_id": 22969,
+          "item_name": "Hydra's heart"
+        },
+        {
+          "item_id": 22746,
+          "item_name": "Ikkle hydra"
+        },
+        {
+          "item_id": 23064,
+          "item_name": "Jar of chemicals"
+        }
+      ]
+    },
+    {
+      "boss": "Amoxliatl",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 29895,
+          "item_name": "Frozen tear"
+        },
+        {
+          "item_id": 29889,
+          "item_name": "Glacial temotli"
+        },
+        {
+          "item_id": 30154,
+          "item_name": "Moxi"
+        },
+        {
+          "item_id": 29892,
+          "item_name": "Pendant of ates (inert)"
+        }
+      ]
+    },
+    {
+      "boss": "Araxxor",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 29799,
+          "item_name": "Araxyte fang"
+        },
+        {
+          "item_id": 29788,
+          "item_name": "Araxyte head"
+        },
+        {
+          "item_id": 29784,
+          "item_name": "Araxyte venom sack"
+        },
+        {
+          "item_id": 29781,
+          "item_name": "Coagulated venom"
+        },
+        {
+          "item_id": 29786,
+          "item_name": "Jar of venom"
+        },
+        {
+          "item_id": 29836,
+          "item_name": "Nid"
+        },
+        {
+          "item_id": 29792,
+          "item_name": "Noxious blade"
+        },
+        {
+          "item_id": 29790,
+          "item_name": "Noxious point"
+        },
+        {
+          "item_id": 29794,
+          "item_name": "Noxious pommel"
+        },
+        {
+          "item_id": 29782,
+          "item_name": "Spider cave teleport"
+        }
+      ]
+    },
+    {
+      "boss": "Barrows Chests",
+      "count": 25,
+      "unique_items": [
+        {
+          "item_id": 4708,
+          "item_name": "Ahrim's hood"
+        },
+        {
+          "item_id": 4714,
+          "item_name": "Ahrim's robeskirt"
+        },
+        {
+          "item_id": 4712,
+          "item_name": "Ahrim's robetop"
+        },
+        {
+          "item_id": 4710,
+          "item_name": "Ahrim's staff"
+        },
+        {
+          "item_id": 4740,
+          "item_name": "Bolt rack"
+        },
+        {
+          "item_id": 4718,
+          "item_name": "Dharok's greataxe"
+        },
+        {
+          "item_id": 4716,
+          "item_name": "Dharok's helm"
+        },
+        {
+          "item_id": 4720,
+          "item_name": "Dharok's platebody"
+        },
+        {
+          "item_id": 4722,
+          "item_name": "Dharok's platelegs"
+        },
+        {
+          "item_id": 4730,
+          "item_name": "Guthan's chainskirt"
+        },
+        {
+          "item_id": 4724,
+          "item_name": "Guthan's helm"
+        },
+        {
+          "item_id": 4728,
+          "item_name": "Guthan's platebody"
+        },
+        {
+          "item_id": 4726,
+          "item_name": "Guthan's warspear"
+        },
+        {
+          "item_id": 4732,
+          "item_name": "Karil's coif"
+        },
+        {
+          "item_id": 4734,
+          "item_name": "Karil's crossbow"
+        },
+        {
+          "item_id": 4738,
+          "item_name": "Karil's leatherskirt"
+        },
+        {
+          "item_id": 4736,
+          "item_name": "Karil's leathertop"
+        },
+        {
+          "item_id": 4747,
+          "item_name": "Torag's hammers"
+        },
+        {
+          "item_id": 4745,
+          "item_name": "Torag's helm"
+        },
+        {
+          "item_id": 4749,
+          "item_name": "Torag's platebody"
+        },
+        {
+          "item_id": 4751,
+          "item_name": "Torag's platelegs"
+        },
+        {
+          "item_id": 4757,
+          "item_name": "Verac's brassard"
+        },
+        {
+          "item_id": 4755,
+          "item_name": "Verac's flail"
+        },
+        {
+          "item_id": 4753,
+          "item_name": "Verac's helm"
+        },
+        {
+          "item_id": 4759,
+          "item_name": "Verac's plateskirt"
+        }
+      ]
+    },
+    {
+      "boss": "Brutus",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 33124,
+          "item_name": "Beef"
+        },
+        {
+          "item_id": 33091,
+          "item_name": "Bottomless milk bucket (empty)"
+        },
+        {
+          "item_id": 33093,
+          "item_name": "Cow slippers"
+        },
+        {
+          "item_id": 33101,
+          "item_name": "Mooleta"
+        }
+      ]
+    },
+    {
+      "boss": "Bryophyta",
+      "count": 1,
+      "unique_items": [
+        {
+          "item_id": 22372,
+          "item_name": "Bryophyta's essence"
+        }
+      ]
+    },
+    {
+      "boss": "Callisto and Artio",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 13178,
+          "item_name": "Callisto cub"
+        },
+        {
+          "item_id": 27667,
+          "item_name": "Claws of callisto"
+        },
+        {
+          "item_id": 7158,
+          "item_name": "Dragon 2h sword"
+        },
+        {
+          "item_id": 11920,
+          "item_name": "Dragon pickaxe"
+        },
+        {
+          "item_id": 12603,
+          "item_name": "Tyrannical ring"
+        },
+        {
+          "item_id": 27681,
+          "item_name": "Voidwaker hilt"
+        }
+      ]
+    },
+    {
+      "boss": "Cerberus",
+      "count": 7,
+      "unique_items": [
+        {
+          "item_id": 13227,
+          "item_name": "Eternal crystal"
+        },
+        {
+          "item_id": 13247,
+          "item_name": "Hellpuppy"
+        },
+        {
+          "item_id": 13245,
+          "item_name": "Jar of souls"
+        },
+        {
+          "item_id": 13249,
+          "item_name": "Key master teleport"
+        },
+        {
+          "item_id": 13229,
+          "item_name": "Pegasian crystal"
+        },
+        {
+          "item_id": 13231,
+          "item_name": "Primordial crystal"
+        },
+        {
+          "item_id": 13233,
+          "item_name": "Smouldering stone"
+        }
+      ]
+    },
+    {
+      "boss": "Chaos Elemental",
+      "count": 3,
+      "unique_items": [
+        {
+          "item_id": 7158,
+          "item_name": "Dragon 2h sword"
+        },
+        {
+          "item_id": 11920,
+          "item_name": "Dragon pickaxe"
+        },
+        {
+          "item_id": 11995,
+          "item_name": "Pet chaos elemental"
+        }
+      ]
+    },
+    {
+      "boss": "Chaos Fanatic",
+      "count": 3,
+      "unique_items": [
+        {
+          "item_id": 11931,
+          "item_name": "Malediction shard 1"
+        },
+        {
+          "item_id": 11928,
+          "item_name": "Odium shard 1"
+        },
+        {
+          "item_id": 11995,
+          "item_name": "Pet chaos elemental"
+        }
+      ]
+    },
+    {
+      "boss": "Commander Zilyana",
+      "count": 8,
+      "unique_items": [
+        {
+          "item_id": 11785,
+          "item_name": "Armadyl crossbow"
+        },
+        {
+          "item_id": 11818,
+          "item_name": "Godsword shard 1"
+        },
+        {
+          "item_id": 11820,
+          "item_name": "Godsword shard 2"
+        },
+        {
+          "item_id": 11822,
+          "item_name": "Godsword shard 3"
+        },
+        {
+          "item_id": 12651,
+          "item_name": "Pet zilyana"
+        },
+        {
+          "item_id": 11814,
+          "item_name": "Saradomin hilt"
+        },
+        {
+          "item_id": 11838,
+          "item_name": "Saradomin sword"
+        },
+        {
+          "item_id": 13256,
+          "item_name": "Saradomin's light"
+        }
+      ]
+    },
+    {
+      "boss": "Corporeal Beast",
+      "count": 7,
+      "unique_items": [
+        {
+          "item_id": 12827,
+          "item_name": "Arcane sigil"
+        },
+        {
+          "item_id": 12819,
+          "item_name": "Elysian sigil"
+        },
+        {
+          "item_id": 12833,
+          "item_name": "Holy elixir"
+        },
+        {
+          "item_id": 25521,
+          "item_name": "Jar of spirits"
+        },
+        {
+          "item_id": 12816,
+          "item_name": "Pet dark core"
+        },
+        {
+          "item_id": 12823,
+          "item_name": "Spectral sigil"
+        },
+        {
+          "item_id": 12829,
+          "item_name": "Spirit shield"
+        }
+      ]
+    },
+    {
+      "boss": "Crazy archaeologist",
+      "count": 3,
+      "unique_items": [
+        {
+          "item_id": 11990,
+          "item_name": "Fedora"
+        },
+        {
+          "item_id": 11932,
+          "item_name": "Malediction shard 2"
+        },
+        {
+          "item_id": 11929,
+          "item_name": "Odium shard 2"
+        }
+      ]
+    },
+    {
+      "boss": "Dagannoth Kings",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 6733,
+          "item_name": "Archers ring"
+        },
+        {
+          "item_id": 6737,
+          "item_name": "Berserker ring"
+        },
+        {
+          "item_id": 6739,
+          "item_name": "Dragon axe"
+        },
+        {
+          "item_id": 6562,
+          "item_name": "Mud battlestaff"
+        },
+        {
+          "item_id": 12644,
+          "item_name": "Pet dagannoth prime"
+        },
+        {
+          "item_id": 12645,
+          "item_name": "Pet dagannoth rex"
+        },
+        {
+          "item_id": 12643,
+          "item_name": "Pet dagannoth supreme"
+        },
+        {
+          "item_id": 6724,
+          "item_name": "Seercull"
+        },
+        {
+          "item_id": 6731,
+          "item_name": "Seers ring"
+        },
+        {
+          "item_id": 6735,
+          "item_name": "Warrior ring"
+        }
+      ]
+    },
+    {
+      "boss": "Deranged Archaeologist",
+      "count": 1,
+      "unique_items": [
+        {
+          "item_id": 30895,
+          "item_name": "Steel ring"
+        }
+      ]
+    },
+    {
+      "boss": "Doom of Mokhaiotl",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 31088,
+          "item_name": "Avernic treads"
+        },
+        {
+          "item_id": 31111,
+          "item_name": "Demon tear"
+        },
+        {
+          "item_id": 31130,
+          "item_name": "Dom"
+        },
+        {
+          "item_id": 31115,
+          "item_name": "Eye of ayak"
+        },
+        {
+          "item_id": 31109,
+          "item_name": "Mokhaiotl cloth"
+        },
+        {
+          "item_id": 31099,
+          "item_name": "Mokhaiotl waystone"
+        }
+      ]
+    },
+    {
+      "boss": "Duke Sucellus",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 28334,
+          "item_name": "Awakener's orb"
+        },
+        {
+          "item_id": 28250,
+          "item_name": "Baron"
+        },
+        {
+          "item_id": 28276,
+          "item_name": "Chromium ingot"
+        },
+        {
+          "item_id": 28321,
+          "item_name": "Eye of the duke"
+        },
+        {
+          "item_id": 28333,
+          "item_name": "Frozen tablet"
+        },
+        {
+          "item_id": 28270,
+          "item_name": "Ice quartz"
+        },
+        {
+          "item_id": 28281,
+          "item_name": "Magus vestige"
+        },
+        {
+          "item_id": 26241,
+          "item_name": "Virtus mask"
+        },
+        {
+          "item_id": 26245,
+          "item_name": "Virtus robe bottom"
+        },
+        {
+          "item_id": 26243,
+          "item_name": "Virtus robe top"
+        }
+      ]
+    },
+    {
+      "boss": "The Fight Caves",
+      "count": 2,
+      "unique_items": [
+        {
+          "item_id": 6570,
+          "item_name": "Fire cape"
+        },
+        {
+          "item_id": 13225,
+          "item_name": "Tzrek-jad"
+        }
+      ]
+    },
+    {
+      "boss": "Fortis Colosseum",
+      "count": 9,
+      "unique_items": [
+        {
+          "item_id": 28947,
+          "item_name": "Dizana's quiver (uncharged)"
+        },
+        {
+          "item_id": 28942,
+          "item_name": "Echo crystal"
+        },
+        {
+          "item_id": 28960,
+          "item_name": "Smol heredit"
+        },
+        {
+          "item_id": 28939,
+          "item_name": "Sunfire fanatic chausses"
+        },
+        {
+          "item_id": 28936,
+          "item_name": "Sunfire fanatic cuirass"
+        },
+        {
+          "item_id": 28933,
+          "item_name": "Sunfire fanatic helm"
+        },
+        {
+          "item_id": 28924,
+          "item_name": "Sunfire splinters"
+        },
+        {
+          "item_id": 28919,
+          "item_name": "Tonalztics of ralos (uncharged)"
+        },
+        {
+          "item_id": 6571,
+          "item_name": "Uncut onyx"
+        }
+      ]
+    },
+    {
+      "boss": "The Gauntlet",
+      "count": 5,
+      "unique_items": [
+        {
+          "item_id": 23956,
+          "item_name": "Crystal armour seed"
+        },
+        {
+          "item_id": 4207,
+          "item_name": "Crystal weapon seed"
+        },
+        {
+          "item_id": 25859,
+          "item_name": "Enhanced crystal weapon seed"
+        },
+        {
+          "item_id": 23859,
+          "item_name": "Gauntlet cape"
+        },
+        {
+          "item_id": 23757,
+          "item_name": "Youngllef"
+        }
+      ]
+    },
+    {
+      "boss": "General Graardor",
+      "count": 8,
+      "unique_items": [
+        {
+          "item_id": 11836,
+          "item_name": "Bandos boots"
+        },
+        {
+          "item_id": 11832,
+          "item_name": "Bandos chestplate"
+        },
+        {
+          "item_id": 11812,
+          "item_name": "Bandos hilt"
+        },
+        {
+          "item_id": 11834,
+          "item_name": "Bandos tassets"
+        },
+        {
+          "item_id": 11818,
+          "item_name": "Godsword shard 1"
+        },
+        {
+          "item_id": 11820,
+          "item_name": "Godsword shard 2"
+        },
+        {
+          "item_id": 11822,
+          "item_name": "Godsword shard 3"
+        },
+        {
+          "item_id": 12650,
+          "item_name": "Pet general graardor"
+        }
+      ]
+    },
+    {
+      "boss": "Giant Mole",
+      "count": 3,
+      "unique_items": [
+        {
+          "item_id": 12646,
+          "item_name": "Baby mole"
+        },
+        {
+          "item_id": 7416,
+          "item_name": "Mole claw"
+        },
+        {
+          "item_id": 7418,
+          "item_name": "Mole skin"
+        }
+      ]
+    },
+    {
+      "boss": "Grotesque Guardians",
+      "count": 7,
+      "unique_items": [
+        {
+          "item_id": 21730,
+          "item_name": "Black tourmaline core"
+        },
+        {
+          "item_id": 21726,
+          "item_name": "Granite dust"
+        },
+        {
+          "item_id": 21736,
+          "item_name": "Granite gloves"
+        },
+        {
+          "item_id": 21742,
+          "item_name": "Granite hammer"
+        },
+        {
+          "item_id": 21739,
+          "item_name": "Granite ring"
+        },
+        {
+          "item_id": 21745,
+          "item_name": "Jar of stone"
+        },
+        {
+          "item_id": 21748,
+          "item_name": "Noon"
+        }
+      ]
+    },
+    {
+      "boss": "Hespori",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 22881,
+          "item_name": "Attas seed"
+        },
+        {
+          "item_id": 22994,
+          "item_name": "Bottomless compost bucket"
+        },
+        {
+          "item_id": 22883,
+          "item_name": "Iasor seed"
+        },
+        {
+          "item_id": 22885,
+          "item_name": "Kronos seed"
+        }
+      ]
+    },
+    {
+      "boss": "The Hueycoatl",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 30070,
+          "item_name": "Dragon hunter wand"
+        },
+        {
+          "item_id": 30088,
+          "item_name": "Huasca seed"
+        },
+        {
+          "item_id": 30152,
+          "item_name": "Huberte"
+        },
+        {
+          "item_id": 30085,
+          "item_name": "Hueycoatl hide"
+        },
+        {
+          "item_id": 30068,
+          "item_name": "Soiled page"
+        },
+        {
+          "item_id": 30066,
+          "item_name": "Tome of earth (empty)"
+        }
+      ]
+    },
+    {
+      "boss": "The Inferno",
+      "count": 2,
+      "unique_items": [
+        {
+          "item_id": 21295,
+          "item_name": "Infernal cape"
+        },
+        {
+          "item_id": 21291,
+          "item_name": "Jal-nib-rek"
+        }
+      ]
+    },
+    {
+      "boss": "Kalphite Queen",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 7158,
+          "item_name": "Dragon 2h sword"
+        },
+        {
+          "item_id": 3140,
+          "item_name": "Dragon chainbody"
+        },
+        {
+          "item_id": 11920,
+          "item_name": "Dragon pickaxe"
+        },
+        {
+          "item_id": 12885,
+          "item_name": "Jar of sand"
+        },
+        {
+          "item_id": 12647,
+          "item_name": "Kalphite princess"
+        },
+        {
+          "item_id": 7981,
+          "item_name": "Kq head"
+        }
+      ]
+    },
+    {
+      "boss": "King Black Dragon",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 11286,
+          "item_name": "Draconic visage"
+        },
+        {
+          "item_id": 11920,
+          "item_name": "Dragon pickaxe"
+        },
+        {
+          "item_id": 7980,
+          "item_name": "Kbd heads"
+        },
+        {
+          "item_id": 12653,
+          "item_name": "Prince black dragon"
+        }
+      ]
+    },
+    {
+      "boss": "Kraken",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 12007,
+          "item_name": "Jar of dirt"
+        },
+        {
+          "item_id": 12004,
+          "item_name": "Kraken tentacle"
+        },
+        {
+          "item_id": 12655,
+          "item_name": "Pet kraken"
+        },
+        {
+          "item_id": 11905,
+          "item_name": "Trident of the seas (full)"
+        }
+      ]
+    },
+    {
+      "boss": "Kree'arra",
+      "count": 8,
+      "unique_items": [
+        {
+          "item_id": 11830,
+          "item_name": "Armadyl chainskirt"
+        },
+        {
+          "item_id": 11828,
+          "item_name": "Armadyl chestplate"
+        },
+        {
+          "item_id": 11826,
+          "item_name": "Armadyl helmet"
+        },
+        {
+          "item_id": 11810,
+          "item_name": "Armadyl hilt"
+        },
+        {
+          "item_id": 11818,
+          "item_name": "Godsword shard 1"
+        },
+        {
+          "item_id": 11820,
+          "item_name": "Godsword shard 2"
+        },
+        {
+          "item_id": 11822,
+          "item_name": "Godsword shard 3"
+        },
+        {
+          "item_id": 12649,
+          "item_name": "Pet kree'arra"
+        }
+      ]
+    },
+    {
+      "boss": "K'ril Tsutsaroth",
+      "count": 8,
+      "unique_items": [
+        {
+          "item_id": 11818,
+          "item_name": "Godsword shard 1"
+        },
+        {
+          "item_id": 11820,
+          "item_name": "Godsword shard 2"
+        },
+        {
+          "item_id": 11822,
+          "item_name": "Godsword shard 3"
+        },
+        {
+          "item_id": 12652,
+          "item_name": "Pet k'ril tsutsaroth"
+        },
+        {
+          "item_id": 11791,
+          "item_name": "Staff of the dead"
+        },
+        {
+          "item_id": 11787,
+          "item_name": "Steam battlestaff"
+        },
+        {
+          "item_id": 11816,
+          "item_name": "Zamorak hilt"
+        },
+        {
+          "item_id": 11824,
+          "item_name": "Zamorakian spear"
+        }
+      ]
+    },
+    {
+      "boss": "The Leviathan",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 28334,
+          "item_name": "Awakener's orb"
+        },
+        {
+          "item_id": 28276,
+          "item_name": "Chromium ingot"
+        },
+        {
+          "item_id": 28325,
+          "item_name": "Leviathan's lure"
+        },
+        {
+          "item_id": 28252,
+          "item_name": "Lil'viathan"
+        },
+        {
+          "item_id": 28332,
+          "item_name": "Scarred tablet"
+        },
+        {
+          "item_id": 28274,
+          "item_name": "Smoke quartz"
+        },
+        {
+          "item_id": 28283,
+          "item_name": "Venator vestige"
+        },
+        {
+          "item_id": 26241,
+          "item_name": "Virtus mask"
+        },
+        {
+          "item_id": 26245,
+          "item_name": "Virtus robe bottom"
+        },
+        {
+          "item_id": 26243,
+          "item_name": "Virtus robe top"
+        }
+      ]
+    },
+    {
+      "boss": "Moons of Peril",
+      "count": 13,
+      "unique_items": [
+        {
+          "item_id": 28991,
+          "item_name": "Atlatl dart"
+        },
+        {
+          "item_id": 29022,
+          "item_name": "Blood moon chestplate"
+        },
+        {
+          "item_id": 29028,
+          "item_name": "Blood moon helm"
+        },
+        {
+          "item_id": 29025,
+          "item_name": "Blood moon tassets"
+        },
+        {
+          "item_id": 29013,
+          "item_name": "Blue moon chestplate"
+        },
+        {
+          "item_id": 29019,
+          "item_name": "Blue moon helm"
+        },
+        {
+          "item_id": 28988,
+          "item_name": "Blue moon spear"
+        },
+        {
+          "item_id": 29016,
+          "item_name": "Blue moon tassets"
+        },
+        {
+          "item_id": 28997,
+          "item_name": "Dual macuahuitl"
+        },
+        {
+          "item_id": 29000,
+          "item_name": "Eclipse atlatl"
+        },
+        {
+          "item_id": 29004,
+          "item_name": "Eclipse moon chestplate"
+        },
+        {
+          "item_id": 29010,
+          "item_name": "Eclipse moon helm"
+        },
+        {
+          "item_id": 29007,
+          "item_name": "Eclipse moon tassets"
+        }
+      ]
+    },
+    {
+      "boss": "Nex",
+      "count": 8,
+      "unique_items": [
+        {
+          "item_id": 26370,
+          "item_name": "Ancient hilt"
+        },
+        {
+          "item_id": 26348,
+          "item_name": "Nexling"
+        },
+        {
+          "item_id": 26372,
+          "item_name": "Nihil horn"
+        },
+        {
+          "item_id": 26231,
+          "item_name": "Nihil shard"
+        },
+        {
+          "item_id": 26376,
+          "item_name": "Torva full helm (damaged)"
+        },
+        {
+          "item_id": 26378,
+          "item_name": "Torva platebody (damaged)"
+        },
+        {
+          "item_id": 26380,
+          "item_name": "Torva platelegs (damaged)"
+        },
+        {
+          "item_id": 26235,
+          "item_name": "Zaryte vambraces"
+        }
+      ]
+    },
+    {
+      "boss": "The Nightmare",
+      "count": 12,
+      "unique_items": [
+        {
+          "item_id": 24517,
+          "item_name": "Eldritch orb"
+        },
+        {
+          "item_id": 24511,
+          "item_name": "Harmonised orb"
+        },
+        {
+          "item_id": 24419,
+          "item_name": "Inquisitor's great helm"
+        },
+        {
+          "item_id": 24420,
+          "item_name": "Inquisitor's hauberk"
+        },
+        {
+          "item_id": 24417,
+          "item_name": "Inquisitor's mace"
+        },
+        {
+          "item_id": 24421,
+          "item_name": "Inquisitor's plateskirt"
+        },
+        {
+          "item_id": 24495,
+          "item_name": "Jar of dreams"
+        },
+        {
+          "item_id": 24491,
+          "item_name": "Little nightmare"
+        },
+        {
+          "item_id": 24422,
+          "item_name": "Nightmare staff"
+        },
+        {
+          "item_id": 25838,
+          "item_name": "Parasitic egg"
+        },
+        {
+          "item_id": 25837,
+          "item_name": "Slepey tablet"
+        },
+        {
+          "item_id": 24514,
+          "item_name": "Volatile orb"
+        }
+      ]
+    },
+    {
+      "boss": "Obor",
+      "count": 1,
+      "unique_items": [
+        {
+          "item_id": 20756,
+          "item_name": "Hill giant club"
+        }
+      ]
+    },
+    {
+      "boss": "Phantom Muspah",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 27616,
+          "item_name": "Ancient essence"
+        },
+        {
+          "item_id": 27627,
+          "item_name": "Ancient icon"
+        },
+        {
+          "item_id": 27643,
+          "item_name": "Charged ice"
+        },
+        {
+          "item_id": 27622,
+          "item_name": "Frozen cache"
+        },
+        {
+          "item_id": 27590,
+          "item_name": "Muphin"
+        },
+        {
+          "item_id": 27614,
+          "item_name": "Venator shard"
+        }
+      ]
+    },
+    {
+      "boss": "Royal Titans",
+      "count": 7,
+      "unique_items": [
+        {
+          "item_id": 30622,
+          "item_name": "Bran"
+        },
+        {
+          "item_id": 30626,
+          "item_name": "Deadeye prayer scroll"
+        },
+        {
+          "item_id": 30640,
+          "item_name": "Desiccated page"
+        },
+        {
+          "item_id": 30631,
+          "item_name": "Fire element staff crown"
+        },
+        {
+          "item_id": 30637,
+          "item_name": "Giantsoul amulet (uncharged)"
+        },
+        {
+          "item_id": 30628,
+          "item_name": "Ice element staff crown"
+        },
+        {
+          "item_id": 30627,
+          "item_name": "Mystic vigour prayer scroll"
+        }
+      ]
+    },
+    {
+      "boss": "Sarachnis",
+      "count": 5,
+      "unique_items": [
+        {
+          "item_id": 23517,
+          "item_name": "Giant egg sac(full)"
+        },
+        {
+          "item_id": 23525,
+          "item_name": "Jar of eyes"
+        },
+        {
+          "item_id": 33133,
+          "item_name": "Pristine spider silk"
+        },
+        {
+          "item_id": 23528,
+          "item_name": "Sarachnis cudgel"
+        },
+        {
+          "item_id": 23495,
+          "item_name": "Sraracha"
+        }
+      ]
+    },
+    {
+      "boss": "Scorpia",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 7158,
+          "item_name": "Dragon 2h sword"
+        },
+        {
+          "item_id": 11933,
+          "item_name": "Malediction shard 3"
+        },
+        {
+          "item_id": 11930,
+          "item_name": "Odium shard 3"
+        },
+        {
+          "item_id": 13181,
+          "item_name": "Scorpia's offspring"
+        }
+      ]
+    },
+    {
+      "boss": "Scurrius",
+      "count": 2,
+      "unique_items": [
+        {
+          "item_id": 28798,
+          "item_name": "Scurrius' spine"
+        },
+        {
+          "item_id": 28801,
+          "item_name": "Scurry"
+        }
+      ]
+    },
+    {
+      "boss": "Shellbane Gryphon",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 31245,
+          "item_name": "Belle's folly (tarnished)"
+        },
+        {
+          "item_id": 31235,
+          "item_name": "Gryphon feather"
+        },
+        {
+          "item_id": 31285,
+          "item_name": "Gull (pet)"
+        },
+        {
+          "item_id": 32921,
+          "item_name": "Jar of feathers"
+        }
+      ]
+    },
+    {
+      "boss": "Skotizo",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 19677,
+          "item_name": "Ancient shard"
+        },
+        {
+          "item_id": 21275,
+          "item_name": "Dark claw"
+        },
+        {
+          "item_id": 19685,
+          "item_name": "Dark totem"
+        },
+        {
+          "item_id": 19701,
+          "item_name": "Jar of darkness"
+        },
+        {
+          "item_id": 21273,
+          "item_name": "Skotos"
+        },
+        {
+          "item_id": 6571,
+          "item_name": "Uncut onyx"
+        }
+      ]
+    },
+    {
+      "boss": "Tempoross",
+      "count": 12,
+      "unique_items": [
+        {
+          "item_id": 25559,
+          "item_name": "Big harpoonfish"
+        },
+        {
+          "item_id": 21028,
+          "item_name": "Dragon harpoon"
+        },
+        {
+          "item_id": 25582,
+          "item_name": "Fish barrel"
+        },
+        {
+          "item_id": 25578,
+          "item_name": "Soaked page"
+        },
+        {
+          "item_id": 25598,
+          "item_name": "Spirit angler boots"
+        },
+        {
+          "item_id": 25592,
+          "item_name": "Spirit angler headband"
+        },
+        {
+          "item_id": 25594,
+          "item_name": "Spirit angler top"
+        },
+        {
+          "item_id": 25596,
+          "item_name": "Spirit angler waders"
+        },
+        {
+          "item_id": 25588,
+          "item_name": "Spirit flakes"
+        },
+        {
+          "item_id": 25580,
+          "item_name": "Tackle box"
+        },
+        {
+          "item_id": 25602,
+          "item_name": "Tiny tempor"
+        },
+        {
+          "item_id": 25576,
+          "item_name": "Tome of water (empty)"
+        }
+      ]
+    },
+    {
+      "boss": "Thermonuclear smoke devil",
+      "count": 5,
+      "unique_items": [
+        {
+          "item_id": 3140,
+          "item_name": "Dragon chainbody"
+        },
+        {
+          "item_id": 25524,
+          "item_name": "Jar of smoke"
+        },
+        {
+          "item_id": 12002,
+          "item_name": "Occult necklace"
+        },
+        {
+          "item_id": 12648,
+          "item_name": "Pet smoke devil"
+        },
+        {
+          "item_id": 11998,
+          "item_name": "Smoke battlestaff"
+        }
+      ]
+    },
+    {
+      "boss": "Vardorvis",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 28334,
+          "item_name": "Awakener's orb"
+        },
+        {
+          "item_id": 28268,
+          "item_name": "Blood quartz"
+        },
+        {
+          "item_id": 28248,
+          "item_name": "Butch"
+        },
+        {
+          "item_id": 28276,
+          "item_name": "Chromium ingot"
+        },
+        {
+          "item_id": 28319,
+          "item_name": "Executioner's axe head"
+        },
+        {
+          "item_id": 28330,
+          "item_name": "Strangled tablet"
+        },
+        {
+          "item_id": 28285,
+          "item_name": "Ultor vestige"
+        },
+        {
+          "item_id": 26241,
+          "item_name": "Virtus mask"
+        },
+        {
+          "item_id": 26245,
+          "item_name": "Virtus robe bottom"
+        },
+        {
+          "item_id": 26243,
+          "item_name": "Virtus robe top"
+        }
+      ]
+    },
+    {
+      "boss": "Venenatis and Spindel",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 7158,
+          "item_name": "Dragon 2h sword"
+        },
+        {
+          "item_id": 11920,
+          "item_name": "Dragon pickaxe"
+        },
+        {
+          "item_id": 27670,
+          "item_name": "Fangs of venenatis"
+        },
+        {
+          "item_id": 12605,
+          "item_name": "Treasonous ring"
+        },
+        {
+          "item_id": 13177,
+          "item_name": "Venenatis spiderling"
+        },
+        {
+          "item_id": 27687,
+          "item_name": "Voidwaker gem"
+        }
+      ]
+    },
+    {
+      "boss": "Vet'ion and Calvar'ion",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 7158,
+          "item_name": "Dragon 2h sword"
+        },
+        {
+          "item_id": 11920,
+          "item_name": "Dragon pickaxe"
+        },
+        {
+          "item_id": 12601,
+          "item_name": "Ring of the gods"
+        },
+        {
+          "item_id": 27673,
+          "item_name": "Skull of vet'ion"
+        },
+        {
+          "item_id": 13179,
+          "item_name": "Vet'ion jr."
+        },
+        {
+          "item_id": 27684,
+          "item_name": "Voidwaker blade"
+        }
+      ]
+    },
+    {
+      "boss": "Vorkath",
+      "count": 6,
+      "unique_items": [
+        {
+          "item_id": 11286,
+          "item_name": "Draconic visage"
+        },
+        {
+          "item_id": 22111,
+          "item_name": "Dragonbone necklace"
+        },
+        {
+          "item_id": 22106,
+          "item_name": "Jar of decay"
+        },
+        {
+          "item_id": 22006,
+          "item_name": "Skeletal visage"
+        },
+        {
+          "item_id": 21907,
+          "item_name": "Vorkath's head"
+        },
+        {
+          "item_id": 21992,
+          "item_name": "Vorki"
+        }
+      ]
+    },
+    {
+      "boss": "The Whisperer",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 28334,
+          "item_name": "Awakener's orb"
+        },
+        {
+          "item_id": 28279,
+          "item_name": "Bellator vestige"
+        },
+        {
+          "item_id": 28276,
+          "item_name": "Chromium ingot"
+        },
+        {
+          "item_id": 28272,
+          "item_name": "Shadow quartz"
+        },
+        {
+          "item_id": 28323,
+          "item_name": "Siren's staff"
+        },
+        {
+          "item_id": 28331,
+          "item_name": "Sirenic tablet"
+        },
+        {
+          "item_id": 26241,
+          "item_name": "Virtus mask"
+        },
+        {
+          "item_id": 26245,
+          "item_name": "Virtus robe bottom"
+        },
+        {
+          "item_id": 26243,
+          "item_name": "Virtus robe top"
+        },
+        {
+          "item_id": 28246,
+          "item_name": "Wisp"
+        }
+      ]
+    },
+    {
+      "boss": "Wintertodt",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 20720,
+          "item_name": "Bruma torch"
+        },
+        {
+          "item_id": 20718,
+          "item_name": "Burnt page"
+        },
+        {
+          "item_id": 6739,
+          "item_name": "Dragon axe"
+        },
+        {
+          "item_id": 20693,
+          "item_name": "Phoenix"
+        },
+        {
+          "item_id": 20710,
+          "item_name": "Pyromancer boots"
+        },
+        {
+          "item_id": 20704,
+          "item_name": "Pyromancer garb"
+        },
+        {
+          "item_id": 20708,
+          "item_name": "Pyromancer hood"
+        },
+        {
+          "item_id": 20706,
+          "item_name": "Pyromancer robe"
+        },
+        {
+          "item_id": 20716,
+          "item_name": "Tome of fire (empty)"
+        },
+        {
+          "item_id": 20712,
+          "item_name": "Warm gloves"
+        }
+      ]
+    },
+    {
+      "boss": "Yama",
+      "count": 11,
+      "unique_items": [
+        {
+          "item_id": 30795,
+          "item_name": "Barrel of demonic tallow (full)"
+        },
+        {
+          "item_id": 30775,
+          "item_name": "Chasm teleport scroll"
+        },
+        {
+          "item_id": 30805,
+          "item_name": "Dossier"
+        },
+        {
+          "item_id": 30763,
+          "item_name": "Forgotten lockbox"
+        },
+        {
+          "item_id": 30753,
+          "item_name": "Oathplate chest"
+        },
+        {
+          "item_id": 30750,
+          "item_name": "Oathplate helm"
+        },
+        {
+          "item_id": 30756,
+          "item_name": "Oathplate legs"
+        },
+        {
+          "item_id": 30765,
+          "item_name": "Oathplate shards"
+        },
+        {
+          "item_id": 30806,
+          "item_name": "Rite of vile transference"
+        },
+        {
+          "item_id": 30759,
+          "item_name": "Soulflame horn"
+        },
+        {
+          "item_id": 30888,
+          "item_name": "Yami"
+        }
+      ]
+    },
+    {
+      "boss": "Zalcano",
+      "count": 4,
+      "unique_items": [
+        {
+          "item_id": 23953,
+          "item_name": "Crystal tool seed"
+        },
+        {
+          "item_id": 23760,
+          "item_name": "Smolcano"
+        },
+        {
+          "item_id": 6571,
+          "item_name": "Uncut onyx"
+        },
+        {
+          "item_id": 23908,
+          "item_name": "Zalcano shard"
+        }
+      ]
+    },
+    {
+      "boss": "Zulrah",
+      "count": 10,
+      "unique_items": [
+        {
+          "item_id": 12936,
+          "item_name": "Jar of swamp"
+        },
+        {
+          "item_id": 12932,
+          "item_name": "Magic fang"
+        },
+        {
+          "item_id": 13201,
+          "item_name": "Magma mutagen"
+        },
+        {
+          "item_id": 12921,
+          "item_name": "Pet snakeling"
+        },
+        {
+          "item_id": 12927,
+          "item_name": "Serpentine visage"
+        },
+        {
+          "item_id": 12922,
+          "item_name": "Tanzanite fang"
+        },
+        {
+          "item_id": 13200,
+          "item_name": "Tanzanite mutagen"
+        },
+        {
+          "item_id": 6571,
+          "item_name": "Uncut onyx"
+        },
+        {
+          "item_id": 12938,
+          "item_name": "Zul-andra teleport"
+        },
+        {
+          "item_id": 12934,
+          "item_name": "Zulrah's scales"
+        }
+      ]
+    }
+  ]
+}

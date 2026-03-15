@@ -1,0 +1,32 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Callisto and Artio",
+  "count": 6,
+  "unique_items": [
+    {
+      "item_id": 13178,
+      "item_name": "Callisto cub"
+    },
+    {
+      "item_id": 27667,
+      "item_name": "Claws of callisto"
+    },
+    {
+      "item_id": 7158,
+      "item_name": "Dragon 2h sword"
+    },
+    {
+      "item_id": 11920,
+      "item_name": "Dragon pickaxe"
+    },
+    {
+      "item_id": 12603,
+      "item_name": "Tyrannical ring"
+    },
+    {
+      "item_id": 27681,
+      "item_name": "Voidwaker hilt"
+    }
+  ]
+}

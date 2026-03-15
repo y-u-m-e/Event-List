@@ -1,0 +1,56 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "The Nightmare",
+  "count": 12,
+  "unique_items": [
+    {
+      "item_id": 24517,
+      "item_name": "Eldritch orb"
+    },
+    {
+      "item_id": 24511,
+      "item_name": "Harmonised orb"
+    },
+    {
+      "item_id": 24419,
+      "item_name": "Inquisitor's great helm"
+    },
+    {
+      "item_id": 24420,
+      "item_name": "Inquisitor's hauberk"
+    },
+    {
+      "item_id": 24417,
+      "item_name": "Inquisitor's mace"
+    },
+    {
+      "item_id": 24421,
+      "item_name": "Inquisitor's plateskirt"
+    },
+    {
+      "item_id": 24495,
+      "item_name": "Jar of dreams"
+    },
+    {
+      "item_id": 24491,
+      "item_name": "Little nightmare"
+    },
+    {
+      "item_id": 24422,
+      "item_name": "Nightmare staff"
+    },
+    {
+      "item_id": 25838,
+      "item_name": "Parasitic egg"
+    },
+    {
+      "item_id": 25837,
+      "item_name": "Slepey tablet"
+    },
+    {
+      "item_id": 24514,
+      "item_name": "Volatile orb"
+    }
+  ]
+}

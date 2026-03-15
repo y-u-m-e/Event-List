@@ -1,0 +1,32 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "The Hueycoatl",
+  "count": 6,
+  "unique_items": [
+    {
+      "item_id": 30070,
+      "item_name": "Dragon hunter wand"
+    },
+    {
+      "item_id": 30088,
+      "item_name": "Huasca seed"
+    },
+    {
+      "item_id": 30152,
+      "item_name": "Huberte"
+    },
+    {
+      "item_id": 30085,
+      "item_name": "Hueycoatl hide"
+    },
+    {
+      "item_id": 30068,
+      "item_name": "Soiled page"
+    },
+    {
+      "item_id": 30066,
+      "item_name": "Tome of earth (empty)"
+    }
+  ]
+}

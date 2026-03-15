@@ -104,6 +104,11 @@ public class SeasonalSubmissionQueue
         return true;
     }
 
+    public synchronized void enqueueDebug(SeasonalSubmission submission)
+    {
+        queue.add(new SeasonalQueueItem(submission, 0, 0, ""));
+    }
+
     public synchronized List<SeasonalQueueItem> pollReady(int maxItems)
     {
         long now = System.currentTimeMillis();

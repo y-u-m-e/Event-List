@@ -1,0 +1,24 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "King Black Dragon",
+  "count": 4,
+  "unique_items": [
+    {
+      "item_id": 11286,
+      "item_name": "Draconic visage"
+    },
+    {
+      "item_id": 11920,
+      "item_name": "Dragon pickaxe"
+    },
+    {
+      "item_id": 7980,
+      "item_name": "Kbd heads"
+    },
+    {
+      "item_id": 12653,
+      "item_name": "Prince black dragon"
+    }
+  ]
+}

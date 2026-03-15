@@ -1,0 +1,32 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Vorkath",
+  "count": 6,
+  "unique_items": [
+    {
+      "item_id": 11286,
+      "item_name": "Draconic visage"
+    },
+    {
+      "item_id": 22111,
+      "item_name": "Dragonbone necklace"
+    },
+    {
+      "item_id": 22106,
+      "item_name": "Jar of decay"
+    },
+    {
+      "item_id": 22006,
+      "item_name": "Skeletal visage"
+    },
+    {
+      "item_id": 21907,
+      "item_name": "Vorkath's head"
+    },
+    {
+      "item_id": 21992,
+      "item_name": "Vorki"
+    }
+  ]
+}

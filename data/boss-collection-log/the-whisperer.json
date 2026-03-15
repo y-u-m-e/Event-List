@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "The Whisperer",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 28334,
+      "item_name": "Awakener's orb"
+    },
+    {
+      "item_id": 28279,
+      "item_name": "Bellator vestige"
+    },
+    {
+      "item_id": 28276,
+      "item_name": "Chromium ingot"
+    },
+    {
+      "item_id": 28272,
+      "item_name": "Shadow quartz"
+    },
+    {
+      "item_id": 28323,
+      "item_name": "Siren's staff"
+    },
+    {
+      "item_id": 28331,
+      "item_name": "Sirenic tablet"
+    },
+    {
+      "item_id": 26241,
+      "item_name": "Virtus mask"
+    },
+    {
+      "item_id": 26245,
+      "item_name": "Virtus robe bottom"
+    },
+    {
+      "item_id": 26243,
+      "item_name": "Virtus robe top"
+    },
+    {
+      "item_id": 28246,
+      "item_name": "Wisp"
+    }
+  ]
+}

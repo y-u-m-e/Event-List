@@ -2,6 +2,7 @@ package com.claneventlist;
 
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.game.ItemStack;
@@ -12,6 +13,10 @@ import javax.inject.Singleton;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -32,6 +37,8 @@ public class SeasonalReporterService
     static final String API_SOURCE = "plugin";
     static final String PLUGIN_KEYWORD = "if_event_list_rl_v1";
     private static final String KEY_CLIENT_INSTANCE_ID = "seasonalClientInstanceId";
+    private static final String AUTH_ERROR_HINT =
+        "Authentication failed (401/403). Check endpoint, event id, passphrase, and manual_roster RSN mapping, then click Validate Config.";
 
     private final EventListConfig config;
     private final ConfigManager configManager;
@@ -43,6 +50,7 @@ public class SeasonalReporterService
     private SeasonalEligibilityManifest manifest = new SeasonalEligibilityManifest();
     private final Map<String, Set<Integer>> allowedDropsByBoss = new HashMap<>();
     private final Set<Integer> allowedAnyBossItems = new HashSet<>();
+    private final Path localManifestPath = RuneLite.RUNELITE_DIR.toPath().resolve("claneventlist-allowed-drops.json");
 
     private long tickCounter = 0L;
 
@@ -206,8 +214,9 @@ public class SeasonalReporterService
         {
             telemetry.setPausedForAuth(true);
             queue.requeueFront(ready, "auth_failure");
-            telemetry.setLastError("Auth expired. Re-link required.");
-            telemetry.setLastApiResponse("HTTP " + bulkResult.getHttpCode() + " auth failure");
+            String detail = extractApiDetail(bulkResult.getMessage(), "auth_failure:");
+            telemetry.setLastError(AUTH_ERROR_HINT + " Detail: " + detail);
+            telemetry.setLastApiResponse("HTTP " + bulkResult.getHttpCode() + " auth failure: " + detail);
         }
         else if (bulkResult.isRetryable())
         {
@@ -264,7 +273,8 @@ public class SeasonalReporterService
         if (result.isAuthFailure())
         {
             telemetry.setPausedForAuth(true);
-            telemetry.setLastError("Auth expired. Re-link required.");
+            String detail = extractApiDetail(result.getMessage(), "auth_failure:");
+            telemetry.setLastError(AUTH_ERROR_HINT + " Detail: " + detail);
         }
         return result;
     }
@@ -272,6 +282,16 @@ public class SeasonalReporterService
     public void flushQueueNow()
     {
         processQueue();
+    }
+
+    public void clearQueueNow()
+    {
+        queue.clearQueue();
+        queue.saveToDisk();
+        telemetry.setQueuedCount(queue.queueSize());
+        telemetry.setPausedForAuth(false);
+        telemetry.setLastError("");
+        telemetry.setLastApiResponse("Queue cleared");
     }
 
     public void enqueueDebugDrop()
@@ -288,45 +308,50 @@ public class SeasonalReporterService
         {
             debugBossKey = "debug_boss";
         }
+        int debugItemId = Math.max(1, config.seasonalDebugItemId());
+        DebugDropSelection selection = resolveDebugDrop(debugBossKey, debugItemId);
 
         SeasonalSubmission submission = buildSubmission(
             identity,
-            debugBossKey,
-            Math.max(1, config.seasonalDebugItemId()),
+            selection.bossKey,
+            selection.itemId,
             Math.max(1, config.seasonalDebugQuantity()),
             Instant.now().toString(),
             getLocalPlayerRsn(),
             "runelite:debug:" + System.currentTimeMillis()
         );
 
-        if (config.seasonalDryRun())
-        {
-            telemetry.setLastApiResponse("Dry run ON: debug drop generated but NOT sent");
-            return;
-        }
-
-        queue.enqueueIfNotDuplicate(submission);
+        queue.enqueueDebug(submission);
         queue.saveToDisk();
         telemetry.setQueuedCount(queue.queueSize());
-        telemetry.setLastApiResponse("Debug drop queued and sending now");
-        processQueue();
+        if (config.seasonalDryRun())
+        {
+            telemetry.setLastApiResponse(
+                "Debug drop queued (" + selection.bossKey + ":" + selection.itemId
+                    + "). Dry run ON, so it will not be sent until Dry run is OFF."
+            );
+            return;
+        }
+        telemetry.setLastApiResponse(
+            "Debug drop queued (" + selection.bossKey + ":" + selection.itemId + "). Use Flush Queue to send."
+        );
     }
 
     public void refreshManifest()
     {
-        parseAllowedDropsJson(config.seasonalAllowedDropsJson());
-        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty())
-        {
-            // Backward compatible with existing installs.
-            parseAllowedDropsConfig(config.seasonalAllowedDrops());
-        }
-        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty())
-        {
-            telemetry.setManifestStatus("No local allowed-drop JSON configured");
+        clearLocalManifest();
+        // Priority: file path -> inline JSON -> cached local file -> legacy string format.
+        parseAllowedDropsJson(readJsonFromConfiguredPath(config.seasonalAllowedDropsJsonPath()));
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty()) parseAllowedDropsJson(config.seasonalAllowedDropsJson());
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty()) parseAllowedDropsJson(readJsonFromFile(localManifestPath));
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty()) parseAllowedDropsConfig(config.seasonalAllowedDrops());
+        if (allowedDropsByBoss.isEmpty() && allowedAnyBossItems.isEmpty()) {
+            telemetry.setManifestStatus("Manifest empty: add Allowed Drops JSON or JSON file path");
             return;
         }
+        saveLocalManifest();
         int mappedItems = allowedDropsByBoss.values().stream().mapToInt(Set::size).sum() + allowedAnyBossItems.size();
-        telemetry.setManifestStatus("Local drop config loaded: bosses=" + allowedDropsByBoss.size() + ", items=" + mappedItems);
+        telemetry.setManifestStatus("Manifest ready: bosses=" + allowedDropsByBoss.size() + ", items=" + mappedItems);
     }
 
     public SeasonalTelemetry getTelemetry()
@@ -451,7 +476,8 @@ public class SeasonalReporterService
             {
                 telemetry.setPausedForAuth(true);
                 queue.markRetry(item, "auth_failure");
-                telemetry.setLastError("Auth expired. Re-link required.");
+                String detail = extractApiDetail(result.getMessage(), "auth_failure:");
+                telemetry.setLastError(AUTH_ERROR_HINT + " Detail: " + detail);
             }
             else if (result.isRetryable())
             {
@@ -556,9 +582,6 @@ public class SeasonalReporterService
 
     private void parseAllowedDropsJson(String rawJson)
     {
-        allowedDropsByBoss.clear();
-        allowedAnyBossItems.clear();
-        manifest = new SeasonalEligibilityManifest();
         String raw = rawJson == null ? "" : rawJson.trim();
         if (raw.isEmpty())
         {
@@ -576,6 +599,7 @@ public class SeasonalReporterService
             return;
         }
 
+        // Supported shape 1: { "_any":[...], "boss_key":[itemId,...] }
         if (root.has("_any") && root.get("_any").isJsonArray())
         {
             JsonArray anyItems = root.getAsJsonArray("_any");
@@ -594,7 +618,51 @@ public class SeasonalReporterService
             }
         }
 
-        int accepted = 0;
+        // Supported shape 2: generated dataset { "bosses":[{"boss":"...", "unique_items":[{"item_id":...}]}] }
+        if (root.has("bosses") && root.get("bosses").isJsonArray())
+        {
+            JsonArray bosses = root.getAsJsonArray("bosses");
+            for (int i = 0; i < bosses.size(); i++)
+            {
+                if (!bosses.get(i).isJsonObject())
+                {
+                    continue;
+                }
+                JsonObject bossObj = bosses.get(i).getAsJsonObject();
+                String bossKey = normalizeBossKey(
+                    bossObj.has("boss") && !bossObj.get("boss").isJsonNull() ? bossObj.get("boss").getAsString() : ""
+                );
+                if (bossKey.isEmpty() || !bossObj.has("unique_items") || !bossObj.get("unique_items").isJsonArray())
+                {
+                    continue;
+                }
+                JsonArray uniqueItems = bossObj.getAsJsonArray("unique_items");
+                for (int j = 0; j < uniqueItems.size(); j++)
+                {
+                    if (!uniqueItems.get(j).isJsonObject())
+                    {
+                        continue;
+                    }
+                    JsonObject itemObj = uniqueItems.get(j).getAsJsonObject();
+                    if (!itemObj.has("item_id") || itemObj.get("item_id").isJsonNull())
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        Integer itemId = itemObj.get("item_id").getAsInt();
+                        allowedDropsByBoss.computeIfAbsent(bossKey, k -> new HashSet<>()).add(itemId);
+                        manifest.getEligibleBossKeys().add(bossKey);
+                        manifest.getEligibleItemIds().add(itemId);
+                    }
+                    catch (Exception ignored)
+                    {
+                        // Ignore malformed entries.
+                    }
+                }
+            }
+        }
+
         for (String bossName : root.keySet())
         {
             if (bossName == null || bossName.trim().isEmpty() || "_any".equalsIgnoreCase(bossName))
@@ -615,7 +683,6 @@ public class SeasonalReporterService
                     allowedDropsByBoss.computeIfAbsent(bossKey, k -> new HashSet<>()).add(itemId);
                     manifest.getEligibleBossKeys().add(bossKey);
                     manifest.getEligibleItemIds().add(itemId);
-                    accepted++;
                 }
                 catch (Exception ignored)
                 {
@@ -624,12 +691,37 @@ public class SeasonalReporterService
             }
         }
 
-        if (accepted == 0 && allowedAnyBossItems.isEmpty())
+        int mappedItems = allowedDropsByBoss.values().stream().mapToInt(Set::size).sum() + allowedAnyBossItems.size();
+        if (mappedItems == 0)
         {
             telemetry.setLastError("Allowed Drops JSON parsed but no valid entries found");
             return;
         }
         manifest.setLoadedAtEpochMs(System.currentTimeMillis());
+    }
+
+    private DebugDropSelection resolveDebugDrop(String requestedBossKey, int requestedItemId)
+    {
+        Set<Integer> requestedItems = allowedDropsByBoss.get(requestedBossKey);
+        if (requestedItems != null && requestedItems.contains(requestedItemId))
+        {
+            return new DebugDropSelection(requestedBossKey, requestedItemId);
+        }
+
+        List<String> bosses = new ArrayList<>(allowedDropsByBoss.keySet());
+        bosses.sort(String::compareTo);
+        for (String boss : bosses)
+        {
+            List<Integer> items = new ArrayList<>(allowedDropsByBoss.getOrDefault(boss, new HashSet<>()));
+            if (items.isEmpty())
+            {
+                continue;
+            }
+            items.sort(Integer::compareTo);
+            return new DebugDropSelection(boss, items.get(0));
+        }
+
+        return new DebugDropSelection(requestedBossKey, requestedItemId);
     }
 
     private Integer parseIntSafe(String value)
@@ -641,6 +733,146 @@ public class SeasonalReporterService
         catch (Exception ignored)
         {
             return null;
+        }
+    }
+
+    private String extractApiDetail(String message, String prefix)
+    {
+        String msg = message == null ? "" : message.trim();
+        if (msg.startsWith(prefix))
+        {
+            msg = msg.substring(prefix.length()).trim();
+        }
+        if (msg.isEmpty())
+        {
+            return "no server detail";
+        }
+        return msg;
+    }
+
+    private void clearLocalManifest()
+    {
+        allowedDropsByBoss.clear();
+        allowedAnyBossItems.clear();
+        manifest = new SeasonalEligibilityManifest();
+    }
+
+    private String readJsonFromConfiguredPath(String configuredPath)
+    {
+        String path = configuredPath == null ? "" : configuredPath.trim();
+        if (path.isEmpty())
+        {
+            return "";
+        }
+        if (path.startsWith("resource:"))
+        {
+            String resourceName = path.substring("resource:".length()).trim();
+            return readJsonFromResource(resourceName);
+        }
+        try
+        {
+            Path p = Path.of(path);
+            if (!p.isAbsolute())
+            {
+                // Relative path first tries plugin-bundled resource, then current working directory.
+                String byResource = readJsonFromResource(path.replace("\\", "/"));
+                if (!byResource.isEmpty())
+                {
+                    return byResource;
+                }
+            }
+            return readJsonFromFile(p);
+        }
+        catch (Exception ex)
+        {
+            telemetry.setLastError("Invalid manifest path");
+            return "";
+        }
+    }
+
+    private String readJsonFromFile(Path path)
+    {
+        try
+        {
+            if (path == null || !Files.exists(path))
+            {
+                return "";
+            }
+            return Files.readString(path, StandardCharsets.UTF_8);
+        }
+        catch (Exception ex)
+        {
+            telemetry.setLastError("Failed reading manifest file: " + ex.getMessage());
+            return "";
+        }
+    }
+
+    private String readJsonFromResource(String resourceName)
+    {
+        String name = resourceName == null ? "" : resourceName.trim();
+        if (name.isEmpty())
+        {
+            return "";
+        }
+        String normalized = name.startsWith("/") ? name.substring(1) : name;
+        try (InputStream in = SeasonalReporterService.class.getClassLoader().getResourceAsStream(normalized))
+        {
+            if (in == null)
+            {
+                return "";
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        catch (Exception ex)
+        {
+            telemetry.setLastError("Failed reading manifest resource: " + ex.getMessage());
+            return "";
+        }
+    }
+
+    private void saveLocalManifest()
+    {
+        try
+        {
+            JsonObject root = new JsonObject();
+            List<String> bosses = new ArrayList<>(allowedDropsByBoss.keySet());
+            bosses.sort(String::compareTo);
+            for (String boss : bosses)
+            {
+                JsonArray items = new JsonArray();
+                List<Integer> sortedItems = new ArrayList<>(allowedDropsByBoss.getOrDefault(boss, new HashSet<>()));
+                sortedItems.sort(Integer::compareTo);
+                for (Integer item : sortedItems)
+                {
+                    items.add(item);
+                }
+                root.add(boss, items);
+            }
+            JsonArray anyItems = new JsonArray();
+            List<Integer> sortedAny = new ArrayList<>(allowedAnyBossItems);
+            sortedAny.sort(Integer::compareTo);
+            for (Integer item : sortedAny)
+            {
+                anyItems.add(item);
+            }
+            root.add("_any", anyItems);
+            Files.writeString(localManifestPath, root.toString(), StandardCharsets.UTF_8);
+        }
+        catch (Exception ex)
+        {
+            telemetry.setLastError("Failed saving local manifest: " + ex.getMessage());
+        }
+    }
+
+    private static class DebugDropSelection
+    {
+        private final String bossKey;
+        private final int itemId;
+
+        private DebugDropSelection(String bossKey, int itemId)
+        {
+            this.bossKey = bossKey;
+            this.itemId = itemId;
         }
     }
 

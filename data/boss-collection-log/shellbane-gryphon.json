@@ -1,0 +1,24 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Shellbane Gryphon",
+  "count": 4,
+  "unique_items": [
+    {
+      "item_id": 31245,
+      "item_name": "Belle's folly (tarnished)"
+    },
+    {
+      "item_id": 31235,
+      "item_name": "Gryphon feather"
+    },
+    {
+      "item_id": 31285,
+      "item_name": "Gull (pet)"
+    },
+    {
+      "item_id": 32921,
+      "item_name": "Jar of feathers"
+    }
+  ]
+}

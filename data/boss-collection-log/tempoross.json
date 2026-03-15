@@ -1,0 +1,56 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Tempoross",
+  "count": 12,
+  "unique_items": [
+    {
+      "item_id": 25559,
+      "item_name": "Big harpoonfish"
+    },
+    {
+      "item_id": 21028,
+      "item_name": "Dragon harpoon"
+    },
+    {
+      "item_id": 25582,
+      "item_name": "Fish barrel"
+    },
+    {
+      "item_id": 25578,
+      "item_name": "Soaked page"
+    },
+    {
+      "item_id": 25598,
+      "item_name": "Spirit angler boots"
+    },
+    {
+      "item_id": 25592,
+      "item_name": "Spirit angler headband"
+    },
+    {
+      "item_id": 25594,
+      "item_name": "Spirit angler top"
+    },
+    {
+      "item_id": 25596,
+      "item_name": "Spirit angler waders"
+    },
+    {
+      "item_id": 25588,
+      "item_name": "Spirit flakes"
+    },
+    {
+      "item_id": 25580,
+      "item_name": "Tackle box"
+    },
+    {
+      "item_id": 25602,
+      "item_name": "Tiny tempor"
+    },
+    {
+      "item_id": 25576,
+      "item_name": "Tome of water (empty)"
+    }
+  ]
+}

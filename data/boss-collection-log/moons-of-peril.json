@@ -1,0 +1,60 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Moons of Peril",
+  "count": 13,
+  "unique_items": [
+    {
+      "item_id": 28991,
+      "item_name": "Atlatl dart"
+    },
+    {
+      "item_id": 29022,
+      "item_name": "Blood moon chestplate"
+    },
+    {
+      "item_id": 29028,
+      "item_name": "Blood moon helm"
+    },
+    {
+      "item_id": 29025,
+      "item_name": "Blood moon tassets"
+    },
+    {
+      "item_id": 29013,
+      "item_name": "Blue moon chestplate"
+    },
+    {
+      "item_id": 29019,
+      "item_name": "Blue moon helm"
+    },
+    {
+      "item_id": 28988,
+      "item_name": "Blue moon spear"
+    },
+    {
+      "item_id": 29016,
+      "item_name": "Blue moon tassets"
+    },
+    {
+      "item_id": 28997,
+      "item_name": "Dual macuahuitl"
+    },
+    {
+      "item_id": 29000,
+      "item_name": "Eclipse atlatl"
+    },
+    {
+      "item_id": 29004,
+      "item_name": "Eclipse moon chestplate"
+    },
+    {
+      "item_id": 29010,
+      "item_name": "Eclipse moon helm"
+    },
+    {
+      "item_id": 29007,
+      "item_name": "Eclipse moon tassets"
+    }
+  ]
+}

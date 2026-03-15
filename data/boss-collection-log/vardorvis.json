@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Vardorvis",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 28334,
+      "item_name": "Awakener's orb"
+    },
+    {
+      "item_id": 28268,
+      "item_name": "Blood quartz"
+    },
+    {
+      "item_id": 28248,
+      "item_name": "Butch"
+    },
+    {
+      "item_id": 28276,
+      "item_name": "Chromium ingot"
+    },
+    {
+      "item_id": 28319,
+      "item_name": "Executioner's axe head"
+    },
+    {
+      "item_id": 28330,
+      "item_name": "Strangled tablet"
+    },
+    {
+      "item_id": 28285,
+      "item_name": "Ultor vestige"
+    },
+    {
+      "item_id": 26241,
+      "item_name": "Virtus mask"
+    },
+    {
+      "item_id": 26245,
+      "item_name": "Virtus robe bottom"
+    },
+    {
+      "item_id": 26243,
+      "item_name": "Virtus robe top"
+    }
+  ]
+}

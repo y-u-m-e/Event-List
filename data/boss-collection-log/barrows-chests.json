@@ -1,0 +1,108 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Barrows Chests",
+  "count": 25,
+  "unique_items": [
+    {
+      "item_id": 4708,
+      "item_name": "Ahrim's hood"
+    },
+    {
+      "item_id": 4714,
+      "item_name": "Ahrim's robeskirt"
+    },
+    {
+      "item_id": 4712,
+      "item_name": "Ahrim's robetop"
+    },
+    {
+      "item_id": 4710,
+      "item_name": "Ahrim's staff"
+    },
+    {
+      "item_id": 4740,
+      "item_name": "Bolt rack"
+    },
+    {
+      "item_id": 4718,
+      "item_name": "Dharok's greataxe"
+    },
+    {
+      "item_id": 4716,
+      "item_name": "Dharok's helm"
+    },
+    {
+      "item_id": 4720,
+      "item_name": "Dharok's platebody"
+    },
+    {
+      "item_id": 4722,
+      "item_name": "Dharok's platelegs"
+    },
+    {
+      "item_id": 4730,
+      "item_name": "Guthan's chainskirt"
+    },
+    {
+      "item_id": 4724,
+      "item_name": "Guthan's helm"
+    },
+    {
+      "item_id": 4728,
+      "item_name": "Guthan's platebody"
+    },
+    {
+      "item_id": 4726,
+      "item_name": "Guthan's warspear"
+    },
+    {
+      "item_id": 4732,
+      "item_name": "Karil's coif"
+    },
+    {
+      "item_id": 4734,
+      "item_name": "Karil's crossbow"
+    },
+    {
+      "item_id": 4738,
+      "item_name": "Karil's leatherskirt"
+    },
+    {
+      "item_id": 4736,
+      "item_name": "Karil's leathertop"
+    },
+    {
+      "item_id": 4747,
+      "item_name": "Torag's hammers"
+    },
+    {
+      "item_id": 4745,
+      "item_name": "Torag's helm"
+    },
+    {
+      "item_id": 4749,
+      "item_name": "Torag's platebody"
+    },
+    {
+      "item_id": 4751,
+      "item_name": "Torag's platelegs"
+    },
+    {
+      "item_id": 4757,
+      "item_name": "Verac's brassard"
+    },
+    {
+      "item_id": 4755,
+      "item_name": "Verac's flail"
+    },
+    {
+      "item_id": 4753,
+      "item_name": "Verac's helm"
+    },
+    {
+      "item_id": 4759,
+      "item_name": "Verac's plateskirt"
+    }
+  ]
+}

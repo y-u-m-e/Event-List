@@ -1,0 +1,32 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Skotizo",
+  "count": 6,
+  "unique_items": [
+    {
+      "item_id": 19677,
+      "item_name": "Ancient shard"
+    },
+    {
+      "item_id": 21275,
+      "item_name": "Dark claw"
+    },
+    {
+      "item_id": 19685,
+      "item_name": "Dark totem"
+    },
+    {
+      "item_id": 19701,
+      "item_name": "Jar of darkness"
+    },
+    {
+      "item_id": 21273,
+      "item_name": "Skotos"
+    },
+    {
+      "item_id": 6571,
+      "item_name": "Uncut onyx"
+    }
+  ]
+}

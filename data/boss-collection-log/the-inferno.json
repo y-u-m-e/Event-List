@@ -1,0 +1,16 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "The Inferno",
+  "count": 2,
+  "unique_items": [
+    {
+      "item_id": 21295,
+      "item_name": "Infernal cape"
+    },
+    {
+      "item_id": 21291,
+      "item_name": "Jal-nib-rek"
+    }
+  ]
+}

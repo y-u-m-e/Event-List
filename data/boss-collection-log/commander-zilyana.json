@@ -1,0 +1,40 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Commander Zilyana",
+  "count": 8,
+  "unique_items": [
+    {
+      "item_id": 11785,
+      "item_name": "Armadyl crossbow"
+    },
+    {
+      "item_id": 11818,
+      "item_name": "Godsword shard 1"
+    },
+    {
+      "item_id": 11820,
+      "item_name": "Godsword shard 2"
+    },
+    {
+      "item_id": 11822,
+      "item_name": "Godsword shard 3"
+    },
+    {
+      "item_id": 12651,
+      "item_name": "Pet zilyana"
+    },
+    {
+      "item_id": 11814,
+      "item_name": "Saradomin hilt"
+    },
+    {
+      "item_id": 11838,
+      "item_name": "Saradomin sword"
+    },
+    {
+      "item_id": 13256,
+      "item_name": "Saradomin's light"
+    }
+  ]
+}

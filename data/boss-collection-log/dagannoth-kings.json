@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Dagannoth Kings",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 6733,
+      "item_name": "Archers ring"
+    },
+    {
+      "item_id": 6737,
+      "item_name": "Berserker ring"
+    },
+    {
+      "item_id": 6739,
+      "item_name": "Dragon axe"
+    },
+    {
+      "item_id": 6562,
+      "item_name": "Mud battlestaff"
+    },
+    {
+      "item_id": 12644,
+      "item_name": "Pet dagannoth prime"
+    },
+    {
+      "item_id": 12645,
+      "item_name": "Pet dagannoth rex"
+    },
+    {
+      "item_id": 12643,
+      "item_name": "Pet dagannoth supreme"
+    },
+    {
+      "item_id": 6724,
+      "item_name": "Seercull"
+    },
+    {
+      "item_id": 6731,
+      "item_name": "Seers ring"
+    },
+    {
+      "item_id": 6735,
+      "item_name": "Warrior ring"
+    }
+  ]
+}

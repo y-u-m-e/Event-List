@@ -1,0 +1,36 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Royal Titans",
+  "count": 7,
+  "unique_items": [
+    {
+      "item_id": 30622,
+      "item_name": "Bran"
+    },
+    {
+      "item_id": 30626,
+      "item_name": "Deadeye prayer scroll"
+    },
+    {
+      "item_id": 30640,
+      "item_name": "Desiccated page"
+    },
+    {
+      "item_id": 30631,
+      "item_name": "Fire element staff crown"
+    },
+    {
+      "item_id": 30637,
+      "item_name": "Giantsoul amulet (uncharged)"
+    },
+    {
+      "item_id": 30628,
+      "item_name": "Ice element staff crown"
+    },
+    {
+      "item_id": 30627,
+      "item_name": "Mystic vigour prayer scroll"
+    }
+  ]
+}

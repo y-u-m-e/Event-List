@@ -1,0 +1,24 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Brutus",
+  "count": 4,
+  "unique_items": [
+    {
+      "item_id": 33124,
+      "item_name": "Beef"
+    },
+    {
+      "item_id": 33091,
+      "item_name": "Bottomless milk bucket (empty)"
+    },
+    {
+      "item_id": 33093,
+      "item_name": "Cow slippers"
+    },
+    {
+      "item_id": 33101,
+      "item_name": "Mooleta"
+    }
+  ]
+}

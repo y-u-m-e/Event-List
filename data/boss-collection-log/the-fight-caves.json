@@ -1,0 +1,16 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "The Fight Caves",
+  "count": 2,
+  "unique_items": [
+    {
+      "item_id": 6570,
+      "item_name": "Fire cape"
+    },
+    {
+      "item_id": 13225,
+      "item_name": "Tzrek-jad"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Fortis Colosseum",
+  "count": 9,
+  "unique_items": [
+    {
+      "item_id": 28947,
+      "item_name": "Dizana's quiver (uncharged)"
+    },
+    {
+      "item_id": 28942,
+      "item_name": "Echo crystal"
+    },
+    {
+      "item_id": 28960,
+      "item_name": "Smol heredit"
+    },
+    {
+      "item_id": 28939,
+      "item_name": "Sunfire fanatic chausses"
+    },
+    {
+      "item_id": 28936,
+      "item_name": "Sunfire fanatic cuirass"
+    },
+    {
+      "item_id": 28933,
+      "item_name": "Sunfire fanatic helm"
+    },
+    {
+      "item_id": 28924,
+      "item_name": "Sunfire splinters"
+    },
+    {
+      "item_id": 28919,
+      "item_name": "Tonalztics of ralos (uncharged)"
+    },
+    {
+      "item_id": 6571,
+      "item_name": "Uncut onyx"
+    }
+  ]
+}

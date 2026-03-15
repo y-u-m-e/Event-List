@@ -43,6 +43,7 @@ public class EventListPanel extends PluginPanel
     private final Runnable seasonalLinkCallback;
     private final Runnable seasonalTestCallback;
     private final Runnable seasonalFlushCallback;
+    private final Runnable seasonalClearQueueCallback;
     private final Runnable seasonalManifestRefreshCallback;
     private final Runnable seasonalDebugDropCallback;
 
@@ -67,6 +68,7 @@ public class EventListPanel extends PluginPanel
         Runnable seasonalLinkCallback,
         Runnable seasonalTestCallback,
         Runnable seasonalFlushCallback,
+        Runnable seasonalClearQueueCallback,
         Runnable seasonalManifestRefreshCallback,
         Runnable seasonalDebugDropCallback
     )
@@ -79,6 +81,7 @@ public class EventListPanel extends PluginPanel
         this.seasonalLinkCallback = seasonalLinkCallback;
         this.seasonalTestCallback = seasonalTestCallback;
         this.seasonalFlushCallback = seasonalFlushCallback;
+        this.seasonalClearQueueCallback = seasonalClearQueueCallback;
         this.seasonalManifestRefreshCallback = seasonalManifestRefreshCallback;
         this.seasonalDebugDropCallback = seasonalDebugDropCallback;
 
@@ -184,13 +187,22 @@ public class EventListPanel extends PluginPanel
         seasonalPanel.setBackground(BACKGROUND_COLOR);
         seasonalPanel.setBorder(new EmptyBorder(2, 8, 2, 8));
 
-        seasonalLinkLabel = createSeasonalValueLabel("Not linked");
-        seasonalCountsLabel = createSeasonalValueLabel("queued=0 sent=0 failed=0");
-        seasonalManifestLabel = createSeasonalValueLabel("Manifest not loaded");
-        seasonalApiLabel = createSeasonalValueLabel("Last API: Not sent yet");
-        seasonalErrorLabel = createSeasonalValueLabel("Last error: none");
+        seasonalLinkLabel = createSeasonalValueLabel("Not configured");
+        seasonalCountsLabel = createSeasonalValueLabel("Queue: 0 pending | 0 sent | 0 failed");
+        seasonalManifestLabel = createSeasonalValueLabel("Manifest: not loaded");
+        seasonalApiLabel = createSeasonalValueLabel("API: no request yet");
+        seasonalErrorLabel = createSeasonalValueLabel("Error: none");
 
-        seasonalPanel.add(createInfoRow("Link", seasonalLinkLabel));
+        JLabel quickGuide = new JLabel("<html><body style='width:170px;color:#d0d0d0'>"
+            + "Quick setup: enable reporter, set endpoint/event/passphrase, paste Allowed Drops JSON, "
+            + "then click Reload Manifest and Queue Test Drop."
+            + "</body></html>");
+        quickGuide.setFont(FontManager.getRunescapeSmallFont());
+        quickGuide.setAlignmentX(Component.LEFT_ALIGNMENT);
+        quickGuide.setBorder(new EmptyBorder(0, 0, 8, 0));
+        seasonalPanel.add(quickGuide);
+
+        seasonalPanel.add(createInfoRow("Config", seasonalLinkLabel));
         seasonalPanel.add(Box.createVerticalStrut(4));
         seasonalPanel.add(createInfoRow("Queue", seasonalCountsLabel));
         seasonalPanel.add(Box.createVerticalStrut(4));
@@ -201,19 +213,21 @@ public class EventListPanel extends PluginPanel
         seasonalPanel.add(createInfoRow("Error", seasonalErrorLabel));
         seasonalPanel.add(Box.createVerticalStrut(10));
 
-        seasonalPanel.add(createActionButton("Link/Re-link", seasonalLinkCallback));
+        seasonalPanel.add(createActionButton("Validate Config", seasonalLinkCallback));
         seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Test API", seasonalTestCallback));
+        seasonalPanel.add(createActionButton("Ping API", seasonalTestCallback));
         seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Flush Queue", seasonalFlushCallback));
+        seasonalPanel.add(createActionButton("Send Queued Drops", seasonalFlushCallback));
         seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Refresh Manifest", seasonalManifestRefreshCallback));
+        seasonalPanel.add(createActionButton("Clear Queue", seasonalClearQueueCallback));
         seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Debug: Queue Fake Drop", seasonalDebugDropCallback));
+        seasonalPanel.add(createActionButton("Reload Manifest JSON", seasonalManifestRefreshCallback));
+        seasonalPanel.add(Box.createVerticalStrut(4));
+        seasonalPanel.add(createActionButton("Queue Test Drop", seasonalDebugDropCallback));
 
         JLabel trustNote = new JLabel("<html><body style='width:170px;color:#b0b0b0'>"
-            + "Identity, team, event, and scoring remain server-authoritative. "
-            + "Local filters are optimization only."
+            + "Queue Test Drop only adds to local queue. Use Send Queued Drops to post to API. "
+            + "Manifest accepts either boss->item arrays or generated boss list JSON."
             + "</body></html>");
         trustNote.setFont(FontManager.getRunescapeSmallFont());
         trustNote.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -766,19 +780,20 @@ public class EventListPanel extends PluginPanel
             }
             if (seasonalCountsLabel != null)
             {
-                String counts = "queued=" + telemetry.getQueuedCount()
-                    + " sent=" + telemetry.getSentCount()
-                    + " failed=" + telemetry.getFailedCount()
+                String counts = "Queue: " + telemetry.getQueuedCount()
+                    + " pending | " + telemetry.getSentCount()
+                    + " sent | " + telemetry.getFailedCount()
+                    + " failed"
                     + (telemetry.isPausedForAuth() ? " (auth paused)" : "");
                 seasonalCountsLabel.setText(counts);
             }
             if (seasonalManifestLabel != null)
             {
-                seasonalManifestLabel.setText(telemetry.getManifestStatus());
+                seasonalManifestLabel.setText("Manifest: " + telemetry.getManifestStatus());
             }
             if (seasonalApiLabel != null)
             {
-                seasonalApiLabel.setText(truncateText("Last API: " + telemetry.getLastApiResponse(), 72));
+                seasonalApiLabel.setText(truncateText("API: " + telemetry.getLastApiResponse(), 72));
                 seasonalApiLabel.setToolTipText(telemetry.getLastApiResponse());
             }
             if (seasonalErrorLabel != null)
@@ -786,7 +801,7 @@ public class EventListPanel extends PluginPanel
                 String err = telemetry.getLastError() == null || telemetry.getLastError().isEmpty()
                     ? "none"
                     : telemetry.getLastError();
-                seasonalErrorLabel.setText(truncateText("Last error: " + err, 72));
+                seasonalErrorLabel.setText(truncateText("Error: " + err, 72));
                 seasonalErrorLabel.setToolTipText(err);
             }
         });

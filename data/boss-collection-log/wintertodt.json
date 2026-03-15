@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Wintertodt",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 20720,
+      "item_name": "Bruma torch"
+    },
+    {
+      "item_id": 20718,
+      "item_name": "Burnt page"
+    },
+    {
+      "item_id": 6739,
+      "item_name": "Dragon axe"
+    },
+    {
+      "item_id": 20693,
+      "item_name": "Phoenix"
+    },
+    {
+      "item_id": 20710,
+      "item_name": "Pyromancer boots"
+    },
+    {
+      "item_id": 20704,
+      "item_name": "Pyromancer garb"
+    },
+    {
+      "item_id": 20708,
+      "item_name": "Pyromancer hood"
+    },
+    {
+      "item_id": 20706,
+      "item_name": "Pyromancer robe"
+    },
+    {
+      "item_id": 20716,
+      "item_name": "Tome of fire (empty)"
+    },
+    {
+      "item_id": 20712,
+      "item_name": "Warm gloves"
+    }
+  ]
+}

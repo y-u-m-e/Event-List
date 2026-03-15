@@ -1,0 +1,24 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Amoxliatl",
+  "count": 4,
+  "unique_items": [
+    {
+      "item_id": 29895,
+      "item_name": "Frozen tear"
+    },
+    {
+      "item_id": 29889,
+      "item_name": "Glacial temotli"
+    },
+    {
+      "item_id": 30154,
+      "item_name": "Moxi"
+    },
+    {
+      "item_id": 29892,
+      "item_name": "Pendant of ates (inert)"
+    }
+  ]
+}

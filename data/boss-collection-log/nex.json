@@ -1,0 +1,40 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Nex",
+  "count": 8,
+  "unique_items": [
+    {
+      "item_id": 26370,
+      "item_name": "Ancient hilt"
+    },
+    {
+      "item_id": 26348,
+      "item_name": "Nexling"
+    },
+    {
+      "item_id": 26372,
+      "item_name": "Nihil horn"
+    },
+    {
+      "item_id": 26231,
+      "item_name": "Nihil shard"
+    },
+    {
+      "item_id": 26376,
+      "item_name": "Torva full helm (damaged)"
+    },
+    {
+      "item_id": 26378,
+      "item_name": "Torva platebody (damaged)"
+    },
+    {
+      "item_id": 26380,
+      "item_name": "Torva platelegs (damaged)"
+    },
+    {
+      "item_id": 26235,
+      "item_name": "Zaryte vambraces"
+    }
+  ]
+}

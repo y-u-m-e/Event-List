@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Araxxor",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 29799,
+      "item_name": "Araxyte fang"
+    },
+    {
+      "item_id": 29788,
+      "item_name": "Araxyte head"
+    },
+    {
+      "item_id": 29784,
+      "item_name": "Araxyte venom sack"
+    },
+    {
+      "item_id": 29781,
+      "item_name": "Coagulated venom"
+    },
+    {
+      "item_id": 29786,
+      "item_name": "Jar of venom"
+    },
+    {
+      "item_id": 29836,
+      "item_name": "Nid"
+    },
+    {
+      "item_id": 29792,
+      "item_name": "Noxious blade"
+    },
+    {
+      "item_id": 29790,
+      "item_name": "Noxious point"
+    },
+    {
+      "item_id": 29794,
+      "item_name": "Noxious pommel"
+    },
+    {
+      "item_id": 29782,
+      "item_name": "Spider cave teleport"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Corporeal Beast",
+  "count": 7,
+  "unique_items": [
+    {
+      "item_id": 12827,
+      "item_name": "Arcane sigil"
+    },
+    {
+      "item_id": 12819,
+      "item_name": "Elysian sigil"
+    },
+    {
+      "item_id": 12833,
+      "item_name": "Holy elixir"
+    },
+    {
+      "item_id": 25521,
+      "item_name": "Jar of spirits"
+    },
+    {
+      "item_id": 12816,
+      "item_name": "Pet dark core"
+    },
+    {
+      "item_id": 12823,
+      "item_name": "Spectral sigil"
+    },
+    {
+      "item_id": 12829,
+      "item_name": "Spirit shield"
+    }
+  ]
+}

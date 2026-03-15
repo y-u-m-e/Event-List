@@ -1,0 +1,40 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Kree'arra",
+  "count": 8,
+  "unique_items": [
+    {
+      "item_id": 11830,
+      "item_name": "Armadyl chainskirt"
+    },
+    {
+      "item_id": 11828,
+      "item_name": "Armadyl chestplate"
+    },
+    {
+      "item_id": 11826,
+      "item_name": "Armadyl helmet"
+    },
+    {
+      "item_id": 11810,
+      "item_name": "Armadyl hilt"
+    },
+    {
+      "item_id": 11818,
+      "item_name": "Godsword shard 1"
+    },
+    {
+      "item_id": 11820,
+      "item_name": "Godsword shard 2"
+    },
+    {
+      "item_id": 11822,
+      "item_name": "Godsword shard 3"
+    },
+    {
+      "item_id": 12649,
+      "item_name": "Pet kree'arra"
+    }
+  ]
+}

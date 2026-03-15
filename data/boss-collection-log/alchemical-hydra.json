@@ -1,0 +1,52 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Alchemical Hydra",
+  "count": 11,
+  "unique_items": [
+    {
+      "item_id": 23077,
+      "item_name": "Alchemical hydra heads"
+    },
+    {
+      "item_id": 22804,
+      "item_name": "Dragon knife"
+    },
+    {
+      "item_id": 20849,
+      "item_name": "Dragon thrownaxe"
+    },
+    {
+      "item_id": 22983,
+      "item_name": "Hydra leather"
+    },
+    {
+      "item_id": 22988,
+      "item_name": "Hydra tail"
+    },
+    {
+      "item_id": 22966,
+      "item_name": "Hydra's claw"
+    },
+    {
+      "item_id": 22973,
+      "item_name": "Hydra's eye"
+    },
+    {
+      "item_id": 22971,
+      "item_name": "Hydra's fang"
+    },
+    {
+      "item_id": 22969,
+      "item_name": "Hydra's heart"
+    },
+    {
+      "item_id": 22746,
+      "item_name": "Ikkle hydra"
+    },
+    {
+      "item_id": 23064,
+      "item_name": "Jar of chemicals"
+    }
+  ]
+}

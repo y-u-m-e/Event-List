@@ -5,7 +5,6 @@ import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
-import net.runelite.client.ui.overlay.components.TitleComponent;
 
 import javax.inject.Inject;
 import java.awt.Color;
@@ -27,6 +26,8 @@ public class SeasonalPassphraseOverlay extends Overlay
         this.config = config;
         setPosition(OverlayPosition.TOP_RIGHT);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
+        setMovable(true);
+        setResizable(true);
     }
 
     @Override
@@ -37,8 +38,7 @@ public class SeasonalPassphraseOverlay extends Overlay
             return null;
         }
         String passphrase = config.seasonalConnectCode() != null ? config.seasonalConnectCode().trim() : "";
-        String eventId = config.seasonalEventId() != null ? config.seasonalEventId().trim() : "";
-        if (passphrase.isEmpty() || eventId.isEmpty())
+        if (passphrase.isEmpty())
         {
             return null;
         }
@@ -46,16 +46,6 @@ public class SeasonalPassphraseOverlay extends Overlay
         panel.getChildren().clear();
         panel.setBackgroundColor(new Color(10, 10, 10, 185));
 
-        panel.getChildren().add(TitleComponent.builder()
-            .text("Seasonal Active")
-            .color(new Color(255, 200, 0))
-            .build());
-        panel.getChildren().add(LineComponent.builder()
-            .left("Event")
-            .right(eventId)
-            .leftColor(Color.LIGHT_GRAY)
-            .rightColor(Color.WHITE)
-            .build());
         panel.getChildren().add(LineComponent.builder()
             .left("Passphrase")
             .right(passphrase)

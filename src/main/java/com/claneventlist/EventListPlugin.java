@@ -79,6 +79,7 @@ public class EventListPlugin extends Plugin
             this::linkSeasonal,
             this::testSeasonalApi,
             this::flushSeasonalQueue,
+            this::clearSeasonalQueue,
             this::refreshSeasonalManifest,
             this::enqueueSeasonalDebugDrop
         );
@@ -159,7 +160,9 @@ public class EventListPlugin extends Plugin
             updateSeasonalTelemetry();
         }
 
-        if (event.getKey().equals("seasonalAllowedDrops") || event.getKey().equals("seasonalAllowedDropsJson"))
+        if (event.getKey().equals("seasonalAllowedDrops")
+            || event.getKey().equals("seasonalAllowedDropsJson")
+            || event.getKey().equals("seasonalAllowedDropsJsonPath"))
         {
             refreshSeasonalManifest();
         }
@@ -347,6 +350,15 @@ public class EventListPlugin extends Plugin
         executorService.submit(() ->
         {
             seasonalReporterService.refreshManifest();
+            updateSeasonalTelemetry();
+        });
+    }
+
+    private void clearSeasonalQueue()
+    {
+        executorService.submit(() ->
+        {
+            seasonalReporterService.clearQueueNow();
             updateSeasonalTelemetry();
         });
     }

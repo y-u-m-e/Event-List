@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "The Leviathan",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 28334,
+      "item_name": "Awakener's orb"
+    },
+    {
+      "item_id": 28276,
+      "item_name": "Chromium ingot"
+    },
+    {
+      "item_id": 28325,
+      "item_name": "Leviathan's lure"
+    },
+    {
+      "item_id": 28252,
+      "item_name": "Lil'viathan"
+    },
+    {
+      "item_id": 28332,
+      "item_name": "Scarred tablet"
+    },
+    {
+      "item_id": 28274,
+      "item_name": "Smoke quartz"
+    },
+    {
+      "item_id": 28283,
+      "item_name": "Venator vestige"
+    },
+    {
+      "item_id": 26241,
+      "item_name": "Virtus mask"
+    },
+    {
+      "item_id": 26245,
+      "item_name": "Virtus robe bottom"
+    },
+    {
+      "item_id": 26243,
+      "item_name": "Virtus robe top"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Duke Sucellus",
+  "count": 10,
+  "unique_items": [
+    {
+      "item_id": 28334,
+      "item_name": "Awakener's orb"
+    },
+    {
+      "item_id": 28250,
+      "item_name": "Baron"
+    },
+    {
+      "item_id": 28276,
+      "item_name": "Chromium ingot"
+    },
+    {
+      "item_id": 28321,
+      "item_name": "Eye of the duke"
+    },
+    {
+      "item_id": 28333,
+      "item_name": "Frozen tablet"
+    },
+    {
+      "item_id": 28270,
+      "item_name": "Ice quartz"
+    },
+    {
+      "item_id": 28281,
+      "item_name": "Magus vestige"
+    },
+    {
+      "item_id": 26241,
+      "item_name": "Virtus mask"
+    },
+    {
+      "item_id": 26245,
+      "item_name": "Virtus robe bottom"
+    },
+    {
+      "item_id": 26243,
+      "item_name": "Virtus robe top"
+    }
+  ]
+}

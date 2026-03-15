@@ -1,0 +1,40 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "K'ril Tsutsaroth",
+  "count": 8,
+  "unique_items": [
+    {
+      "item_id": 11818,
+      "item_name": "Godsword shard 1"
+    },
+    {
+      "item_id": 11820,
+      "item_name": "Godsword shard 2"
+    },
+    {
+      "item_id": 11822,
+      "item_name": "Godsword shard 3"
+    },
+    {
+      "item_id": 12652,
+      "item_name": "Pet k'ril tsutsaroth"
+    },
+    {
+      "item_id": 11791,
+      "item_name": "Staff of the dead"
+    },
+    {
+      "item_id": 11787,
+      "item_name": "Steam battlestaff"
+    },
+    {
+      "item_id": 11816,
+      "item_name": "Zamorak hilt"
+    },
+    {
+      "item_id": 11824,
+      "item_name": "Zamorakian spear"
+    }
+  ]
+}

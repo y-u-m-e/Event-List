@@ -1,0 +1,20 @@
+{
+  "source": "https://oldschool.runescape.wiki",
+  "generated_at_utc": "2026-03-14T22:14:09Z",
+  "boss": "Crazy archaeologist",
+  "count": 3,
+  "unique_items": [
+    {
+      "item_id": 11990,
+      "item_name": "Fedora"
+    },
+    {
+      "item_id": 11932,
+      "item_name": "Malediction shard 2"
+    },
+    {
+      "item_id": 11929,
+      "item_name": "Odium shard 2"
+    }
+  ]
+}
