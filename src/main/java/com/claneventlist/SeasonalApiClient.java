@@ -2,6 +2,7 @@ package com.claneventlist;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
@@ -135,6 +136,11 @@ public class SeasonalApiClient
 
             if (code >= 200 && code < 300)
             {
+                String mirrorFailure = detectMirrorOrPayloadFailure(responseBody);
+                if (mirrorFailure != null && !mirrorFailure.isEmpty())
+                {
+                    return new SeasonalApiResult(false, false, false, false, false, code, "validation_error:" + mirrorFailure);
+                }
                 return new SeasonalApiResult(true, false, false, false, false, code, "ok");
             }
             if (code == 401 || code == 403)
@@ -164,6 +170,70 @@ public class SeasonalApiClient
         {
             return new SeasonalApiResult(false, true, false, false, false, 0, ex.getMessage());
         }
+    }
+
+    private String detectMirrorOrPayloadFailure(String responseBody)
+    {
+        if (responseBody == null || responseBody.trim().isEmpty())
+        {
+            return null;
+        }
+        try
+        {
+            JsonElement parsed = new JsonParser().parse(responseBody);
+            if (!parsed.isJsonObject())
+            {
+                return null;
+            }
+            JsonObject obj = parsed.getAsJsonObject();
+
+            if (obj.has("accepted") && !obj.get("accepted").isJsonNull() && !obj.get("accepted").getAsBoolean())
+            {
+                return "submission_not_accepted:" + trimForMessage(responseBody);
+            }
+            if (obj.has("ok") && !obj.get("ok").isJsonNull() && !obj.get("ok").getAsBoolean())
+            {
+                return "request_not_ok:" + trimForMessage(responseBody);
+            }
+
+            if (obj.has("sheet_mirror") && obj.get("sheet_mirror").isJsonObject())
+            {
+                JsonObject mirror = obj.getAsJsonObject("sheet_mirror");
+                if (mirror.has("attempted") && mirror.has("ok"))
+                {
+                    boolean attempted = !mirror.get("attempted").isJsonNull() && mirror.get("attempted").getAsBoolean();
+                    boolean ok = !mirror.get("ok").isJsonNull() && mirror.get("ok").getAsBoolean();
+                    if (attempted && !ok)
+                    {
+                        return "sheet_mirror_failed:" + trimForMessage(mirror.toString());
+                    }
+                }
+            }
+
+            if (obj.has("processed") && obj.has("accepted"))
+            {
+                int processed = obj.get("processed").isJsonNull() ? 0 : obj.get("processed").getAsInt();
+                int accepted = obj.get("accepted").isJsonNull() ? 0 : obj.get("accepted").getAsInt();
+                if (processed > 0 && accepted < processed)
+                {
+                    return "bulk_partial_failure:" + trimForMessage(responseBody);
+                }
+            }
+        }
+        catch (Exception ignored)
+        {
+            return null;
+        }
+        return null;
+    }
+
+    private String trimForMessage(String raw)
+    {
+        if (raw == null)
+        {
+            return "";
+        }
+        return raw.length() > 250 ? raw.substring(0, 250) : raw;
     }
 
     private String apiBaseUrl()

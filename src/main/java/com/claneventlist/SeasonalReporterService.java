@@ -217,12 +217,14 @@ public class SeasonalReporterService
             String detail = extractApiDetail(bulkResult.getMessage(), "auth_failure:");
             telemetry.setLastError(AUTH_ERROR_HINT + " Detail: " + detail);
             telemetry.setLastApiResponse("HTTP " + bulkResult.getHttpCode() + " auth failure: " + detail);
+            logApiFailure("submitBulk", bulkResult, detail);
         }
         else if (bulkResult.isRetryable())
         {
             queue.requeueFront(ready, bulkResult.getMessage());
             telemetry.setLastError("Retrying bulk: " + bulkResult.getMessage());
             telemetry.setLastApiResponse("Bulk retry scheduled");
+            logApiFailure("submitBulk", bulkResult, "");
         }
         else
         {
@@ -233,6 +235,7 @@ public class SeasonalReporterService
             telemetry.setFailedCount(telemetry.getFailedCount() + ready.size());
             telemetry.setLastError("Bulk failed: " + bulkResult.getMessage());
             telemetry.setLastApiResponse("Bulk dead-lettered");
+            logApiFailure("submitBulk", bulkResult, "");
         }
 
         queue.saveToDisk();
@@ -275,6 +278,11 @@ public class SeasonalReporterService
             telemetry.setPausedForAuth(true);
             String detail = extractApiDetail(result.getMessage(), "auth_failure:");
             telemetry.setLastError(AUTH_ERROR_HINT + " Detail: " + detail);
+            logApiFailure("testApi", result, detail);
+        }
+        else if (!result.isSuccess())
+        {
+            logApiFailure("testApi", result, "");
         }
         return result;
     }
@@ -478,15 +486,18 @@ public class SeasonalReporterService
                 queue.markRetry(item, "auth_failure");
                 String detail = extractApiDetail(result.getMessage(), "auth_failure:");
                 telemetry.setLastError(AUTH_ERROR_HINT + " Detail: " + detail);
+                logApiFailure("submitSingle", result, detail);
             }
             else if (result.isRetryable())
             {
                 queue.markRetry(item, result.getMessage());
+                logApiFailure("submitSingle", result, "");
             }
             else
             {
                 queue.markDeadLetter(item, result.getMessage());
                 telemetry.setFailedCount(telemetry.getFailedCount() + 1);
+                logApiFailure("submitSingle", result, "");
             }
         }
         telemetry.setLastApiResponse("Single endpoint processed " + items.size() + " item(s)");
@@ -748,6 +759,24 @@ public class SeasonalReporterService
             return "no server detail";
         }
         return msg;
+    }
+
+    private void logApiFailure(String action, SeasonalApiResult result, String detail)
+    {
+        String msg = result != null ? String.valueOf(result.getMessage()) : "unknown";
+        int code = result != null ? result.getHttpCode() : 0;
+        boolean auth = result != null && result.isAuthFailure();
+        boolean retryable = result != null && result.isRetryable();
+        String extra = (detail == null || detail.trim().isEmpty()) ? "" : (" | detail=" + detail.trim());
+        log.warn(
+            "Seasonal API {} failed | http={} | authFailure={} | retryable={} | message={}{}",
+            action,
+            code,
+            auth,
+            retryable,
+            msg,
+            extra
+        );
     }
 
     private void clearLocalManifest()
