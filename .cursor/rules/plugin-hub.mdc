@@ -1,0 +1,50 @@
+---
+description: RuneLite Plugin Hub compliance for Ironforged Clan Events
+alwaysApply: true
+---
+
+# Ironforged Clan Events — Plugin Hub rules
+
+Follow `AGENTS.md` in this repo (from RuneLite’s example-plugin). Hard constraints below.
+
+## Never ship
+
+- Reflection, JNI/JNA, ProcessBuilder, serialization, dynamic code loading
+- Client-thread network/disk IO; prefer OkHttp `enqueue()` or executor + `execute()`
+- `new Gson()` — always `@Inject Gson`
+- `HttpURLConnection` / `java.net.http` — always `@Inject OkHttpClient`
+- `Desktop.browse` — use `LinkBrowser`
+- Dead/unused classes, seasonal/reporter stacks, or unused `data/` in the JAR
+- Oversized PNGs (keep nav/hub icons ≤48px; prefer 16–32 for nav)
+- `META-INF/services/net.runelite.client.plugins.Plugin`
+- New third-party Gradle deps without hub verification metadata (avoid unless required)
+
+## Third-party networking
+
+Any feature that contacts a non-RuneLite server must be:
+
+1. **Opt-in** (default off)
+2. Annotated with exact warning:  
+   `"This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers"`
+
+Google Sheets uses `enableGoogleSheets` for this. Do not fetch when it is false.
+
+## Config
+
+- Keep group id specific: `ironforgedclanevents`
+- Do not rename keys/groups without a migration
+- Do not mix pure reformat commits with feature changes
+
+## Packaging before PR
+
+- `runelite-plugin.properties` displayName/tags/plugins match the plugin
+- Root `icon.png` ≤48×72
+- `settings.gradle` project name set (not `example`)
+- Java 11 (`options.release.set(11)`)
+- BSD-2 LICENSE present
+- Clean `shutDown()` removes overlays/nav/subscriptions
+- README describes user-facing features only (no dead seasonal docs)
+
+## Testing
+
+Do not automate RuneScape input. Offer `./gradlew.bat runClient`, tell the user what to verify, wait for confirmation.
