@@ -205,11 +205,6 @@ public class SeasonalCatalogService
         return null;
     }
 
-    public SeasonalCatalogEntry findMatch(String bossName, String itemName)
-    {
-        return findMatch(bossName, itemName, 0);
-    }
-
     public boolean canSubmitAgainstCatalog()
     {
         return acceptingSubmissions && !catalog.isEmpty();

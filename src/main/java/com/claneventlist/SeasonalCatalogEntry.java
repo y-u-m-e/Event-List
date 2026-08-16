@@ -11,11 +11,6 @@ final class SeasonalCatalogEntry
     private final String bossKey;
     private final String itemKey;
 
-    SeasonalCatalogEntry(String boss, String item)
-    {
-        this(boss, item, 0);
-    }
-
     SeasonalCatalogEntry(String boss, String item, int itemId)
     {
         this.boss = boss == null ? "" : boss.trim();
@@ -41,11 +36,6 @@ final class SeasonalCatalogEntry
     int getItemId()
     {
         return itemId;
-    }
-
-    boolean matches(String bossName, String itemName)
-    {
-        return matches(bossName, itemName, 0);
     }
 
     /**

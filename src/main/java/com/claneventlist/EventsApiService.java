@@ -97,11 +97,11 @@ public class EventsApiService
             }
 
             String body = responseBody.string();
-            FeedMeta meta = parseFeedMeta(body);
+            String feedCache = parseFeedCache(body);
             List<ClanEvent> events = parseEventsJson(body);
             cachedEvents = events;
             lastFetchTime = System.currentTimeMillis();
-            apiStatus = buildStatus(health, true, response.code(), meta, events.size());
+            apiStatus = buildStatus(health, true, response.code(), feedCache, events.size());
             log.debug("Fetched {} events", events.size());
             return events;
         }
@@ -136,9 +136,7 @@ public class EventsApiService
                 true,
                 response.code(),
                 text(root, "status"),
-                text(root, "service"),
-                text(root, "version"),
-                text(root, "timestamp")
+                text(root, "version")
             );
         }
         catch (Exception e)
@@ -148,25 +146,13 @@ public class EventsApiService
         }
     }
 
-    private FeedMeta parseFeedMeta(String body)
+    /** The feed's cache marker ("hit" / "miss"), shown in the health tooltip. */
+    private String parseFeedCache(String body)
     {
         try
         {
             JsonObject root = gson.fromJson(body, JsonObject.class);
-            if (root == null)
-            {
-                return null;
-            }
-            boolean ok = !root.has("ok") || root.get("ok").getAsBoolean();
-            return new FeedMeta(
-                ok,
-                text(root, "source"),
-                text(root, "updatedAt"),
-                text(root, "cache"),
-                root.has("count") && root.get("count").isJsonPrimitive()
-                    ? root.get("count").getAsInt()
-                    : -1
-            );
+            return root == null ? null : text(root, "cache");
         }
         catch (Exception e)
         {
@@ -178,7 +164,7 @@ public class EventsApiService
         HealthPayload health,
         boolean eventsOk,
         int eventsHttp,
-        FeedMeta meta,
+        String feedCache,
         int eventCount
     )
     {
@@ -204,9 +190,9 @@ public class EventsApiService
         if (eventsOk)
         {
             eventsBit = eventCount + " event" + (eventCount != 1 ? "s" : "");
-            if (meta != null && !meta.cache.isEmpty())
+            if (feedCache != null && !feedCache.isEmpty())
             {
-                eventsBit += " · " + meta.cache;
+                eventsBit += " · " + feedCache;
             }
         }
         else if (eventsHttp > 0)
@@ -254,41 +240,19 @@ public class EventsApiService
         final boolean reachable;
         final int httpCode;
         final String status;
-        final String service;
         final String version;
-        final String timestamp;
 
-        HealthPayload(boolean reachable, int httpCode, String status, String service, String version, String timestamp)
+        HealthPayload(boolean reachable, int httpCode, String status, String version)
         {
             this.reachable = reachable;
             this.httpCode = httpCode;
             this.status = status == null ? "" : status;
-            this.service = service == null ? "" : service;
             this.version = version == null ? "" : version;
-            this.timestamp = timestamp == null ? "" : timestamp;
         }
 
         static HealthPayload failed(int httpCode)
         {
-            return new HealthPayload(false, httpCode, "", "", "", "");
-        }
-    }
-
-    private static final class FeedMeta
-    {
-        final boolean ok;
-        final String source;
-        final String updatedAt;
-        final String cache;
-        final int count;
-
-        FeedMeta(boolean ok, String source, String updatedAt, String cache, int count)
-        {
-            this.ok = ok;
-            this.source = source == null ? "" : source;
-            this.updatedAt = updatedAt == null ? "" : updatedAt;
-            this.cache = cache == null ? "" : cache;
-            this.count = count;
+            return new HealthPayload(false, httpCode, "", "");
         }
     }
 

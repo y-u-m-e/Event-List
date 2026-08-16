@@ -25,7 +25,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 
@@ -50,9 +49,6 @@ public class EventListPlugin extends Plugin
 
     @Inject
     private ConfigManager configManager;
-
-    @Inject
-    private ColorPickerManager colorPickerManager;
 
     @Inject
     private ItemManager itemManager;
@@ -108,7 +104,6 @@ public class EventListPlugin extends Plugin
         panel = new EventListPanel(
             config,
             configManager,
-            colorPickerManager,
             itemManager,
             spriteManager,
             eventsApiService,

@@ -151,11 +151,6 @@ public class SeasonalDropSubmitService
         return historyStore.getRecords();
     }
 
-    public String getProfileKey()
-    {
-        return historyStore.getProfileKey();
-    }
-
     private void setStatus(String status)
     {
         lastStatus = status == null ? "" : status;

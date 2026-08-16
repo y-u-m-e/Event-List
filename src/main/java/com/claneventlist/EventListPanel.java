@@ -7,7 +7,6 @@ import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
@@ -94,7 +93,6 @@ public class EventListPanel extends PluginPanel
 
     private final EventListConfig config;
     private final ConfigManager configManager;
-    private final ColorPickerManager colorPickerManager;
     private final ItemManager itemManager;
     private final SpriteManager spriteManager;
     private final EventsApiService eventsApiService;
@@ -138,7 +136,6 @@ public class EventListPanel extends PluginPanel
     public EventListPanel(
         EventListConfig config,
         ConfigManager configManager,
-        ColorPickerManager colorPickerManager,
         ItemManager itemManager,
         SpriteManager spriteManager,
         EventsApiService eventsApiService,
@@ -156,7 +153,6 @@ public class EventListPanel extends PluginPanel
 
         this.config = config;
         this.configManager = configManager;
-        this.colorPickerManager = colorPickerManager;
         this.itemManager = itemManager;
         this.spriteManager = spriteManager;
         this.eventsApiService = eventsApiService;

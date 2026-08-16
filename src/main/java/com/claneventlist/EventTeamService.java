@@ -193,12 +193,7 @@ public class EventTeamService
         return EventTeamIconFactory.defaultPalette(team);
     }
 
-    public Color teamColor(int team)
-    {
-        return teamPalette(team).getColor();
-    }
-
-    public void saveTeamPalette(int team, EventTeamIconFactory.TeamPalette palette)
+    private void saveTeamPalette(int team, EventTeamIconFactory.TeamPalette palette)
     {
         EventTeamIconFactory.TeamPalette p = palette == null
             ? EventTeamIconFactory.defaultPalette(team)
