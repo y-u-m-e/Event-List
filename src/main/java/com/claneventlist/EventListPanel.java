@@ -370,7 +370,7 @@ public class EventListPanel extends PluginPanel
     private void loadCollectionLogIcon(JLabel iconLabel)
     {
         spriteManager.getSpriteAsync(
-            net.runelite.api.SpriteID.HISCORE_COLLECTIONS_LOGGED,
+            net.runelite.api.gameval.SpriteID.IconActivities25x25.COLLECTIONS_LOGGED,
             0,
             sprite -> SwingUtilities.invokeLater(() ->
             {
