@@ -14,7 +14,10 @@ import okhttp3.Response;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Opt-in sync of event team rosters from {@code GET /plugins/seasonal/teams}.
@@ -24,6 +27,9 @@ import java.util.List;
 @Singleton
 public class EventTeamSyncService
 {
+    /** Contract caps the payload at 16 teams; slots past MAX_TEAMS are dropped when applied. */
+    private static final int MAX_API_TEAMS = 16;
+
     private final EventListConfig config;
     private final ConfigManager configManager;
     private final SeasonalCatalogService catalogService;
@@ -151,7 +157,7 @@ public class EventTeamSyncService
                 {
                     syncedTeams.add(team);
                 }
-                if (syncedTeams.size() >= EventTeamService.MAX_TEAMS)
+                if (syncedTeams.size() >= MAX_API_TEAMS)
                 {
                     break;
                 }
@@ -164,12 +170,20 @@ public class EventTeamSyncService
                 return false;
             }
 
-            applyTeams(syncedTeams);
+            int applied = applyTeams(syncedTeams);
+            if (applied == 0)
+            {
+                lastError = "no usable slots";
+                lastStatus = "Team sync failed: no teams in slots 1-" + EventTeamService.MAX_TEAMS;
+                log.warn("Team roster sync returned {} team(s), none in range", syncedTeams.size());
+                return false;
+            }
+
             lastError = "";
             String apiEvent = text(root, "event_id");
-            lastStatus = "Synced " + syncedTeams.size() + " team(s)"
+            lastStatus = "Synced " + applied + " team(s)"
                 + (apiEvent.isEmpty() ? "" : " · " + apiEvent);
-            log.debug("Team roster sync applied {} teams", syncedTeams.size());
+            log.debug("Team roster sync applied {} teams", applied);
             return true;
         }
         catch (Exception e)
@@ -181,15 +195,38 @@ public class EventTeamSyncService
         }
     }
 
-    private void applyTeams(List<SyncedTeam> teams)
+    /**
+     * Writes each team into the slot the API assigned it, so badge color and label
+     * follow the roster rather than payload ordering. parseTeam already falls back
+     * to array order when the API omits {@code slot}.
+     *
+     * @return how many teams were placed
+     */
+    private int applyTeams(List<SyncedTeam> teams)
     {
-        int count = Math.min(teams.size(), EventTeamService.MAX_TEAMS);
-        configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "teamCount", count);
+        Map<Integer, SyncedTeam> bySlot = mapBySlot(teams);
 
-        for (int i = 0; i < count; i++)
+        if (bySlot.isEmpty())
         {
-            SyncedTeam team = teams.get(i);
-            int slot = i + 1;
+            // Nothing usable — leave the local roster alone rather than wiping it.
+            return 0;
+        }
+
+        // Highest occupied slot, not team count: slots may be sparse.
+        configManager.setConfiguration(
+            EventListConfig.CONFIG_GROUP, "teamCount", Collections.max(bySlot.keySet()));
+
+        for (int slot = 1; slot <= EventTeamService.MAX_TEAMS; slot++)
+        {
+            SyncedTeam team = bySlot.get(slot);
+            if (team == null)
+            {
+                // Clear unoccupied slots so stale RSNs do not linger.
+                configManager.unsetConfiguration(EventListConfig.CONFIG_GROUP, EventTeamService.teamNamesKey(slot));
+                configManager.unsetConfiguration(EventListConfig.CONFIG_GROUP, EventTeamService.teamLabelKey(slot));
+                continue;
+            }
+
             configManager.setConfiguration(
                 EventListConfig.CONFIG_GROUP,
                 EventTeamService.teamNamesKey(slot),
@@ -210,20 +247,38 @@ public class EventTeamSyncService
             }
         }
 
-        // Clear leftover slots beyond synced count so stale RSNs do not linger.
-        for (int slot = count + 1; slot <= EventTeamService.MAX_TEAMS; slot++)
+        return bySlot.size();
+    }
+
+    /**
+     * Keys teams by their assigned slot. Slots outside 1..MAX_TEAMS are dropped,
+     * and on a duplicate slot the first team wins (same rule as duplicate RSNs).
+     */
+    static Map<Integer, SyncedTeam> mapBySlot(List<SyncedTeam> teams)
+    {
+        Map<Integer, SyncedTeam> bySlot = new LinkedHashMap<>();
+        for (SyncedTeam team : teams)
         {
-            configManager.unsetConfiguration(EventListConfig.CONFIG_GROUP, EventTeamService.teamNamesKey(slot));
-            configManager.unsetConfiguration(EventListConfig.CONFIG_GROUP, EventTeamService.teamLabelKey(slot));
+            if (team.slot < 1 || team.slot > EventTeamService.MAX_TEAMS)
+            {
+                log.debug("Dropping team '{}': slot {} outside 1-{}",
+                    team.name, team.slot, EventTeamService.MAX_TEAMS);
+                continue;
+            }
+            SyncedTeam existing = bySlot.putIfAbsent(team.slot, team);
+            if (existing != null)
+            {
+                log.debug("Dropping team '{}': slot {} already taken by '{}'",
+                    team.name, team.slot, existing.name);
+            }
         }
+        return bySlot;
     }
 
     private static SyncedTeam parseTeam(JsonObject obj, int fallbackSlot)
     {
         SyncedTeam team = new SyncedTeam();
-        team.slot = obj.has("slot") && obj.get("slot").isJsonPrimitive()
-            ? obj.get("slot").getAsInt()
-            : fallbackSlot;
+        team.slot = slotOrFallback(obj, fallbackSlot);
         team.name = text(obj, "name");
         if (team.name.isEmpty())
         {
@@ -289,6 +344,27 @@ public class EventTeamSyncService
         return team;
     }
 
+    /**
+     * Contract slot is 1..16. Anything missing, non-numeric or out of range falls
+     * back to array order rather than failing the whole sync.
+     */
+    private static int slotOrFallback(JsonObject obj, int fallbackSlot)
+    {
+        if (obj == null || !obj.has("slot") || !obj.get("slot").isJsonPrimitive())
+        {
+            return fallbackSlot;
+        }
+        try
+        {
+            int slot = obj.get("slot").getAsInt();
+            return slot >= 1 && slot <= MAX_API_TEAMS ? slot : fallbackSlot;
+        }
+        catch (NumberFormatException e)
+        {
+            return fallbackSlot;
+        }
+    }
+
     private static String text(JsonObject obj, String key)
     {
         if (obj == null || !obj.has(key) || obj.get(key).isJsonNull())
@@ -298,7 +374,7 @@ public class EventTeamSyncService
         return obj.get(key).getAsString().trim();
     }
 
-    private static final class SyncedTeam
+    static final class SyncedTeam
     {
         int slot;
         String name = "";
