@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -11,9 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Represents a clan event fetched from the Google Sheet.
- * 
- * Expected columns: Event Name, Description, Date, Start Time, End Time, Host, Location, URL
+ * Represents a clan event from the Iron Forged events API.
  */
 @Data
 @AllArgsConstructor
@@ -22,30 +21,185 @@ public class ClanEvent implements Comparable<ClanEvent>
 {
     private String name;
     private String description;
-    private LocalDateTime dateTime;      // Start date/time
-    private LocalTime endTime;           // End time (same day)
+    private LocalDateTime dateTime;      // Start date/time (UTC wall)
+    private LocalTime endTime;           // End clock time (UTC), optional
     private String host;
     private String location;
     private String url;                  // Link to more info / signup
-
-    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm");
-    private static final DateTimeFormatter SHORT_FORMAT = DateTimeFormatter.ofPattern("MMM dd HH:mm");
-    private static final DateTimeFormatter TIME_ONLY = DateTimeFormatter.ofPattern("HH:mm");
+    /** Full UTC end instant when provided by the API (preferred over endTime alone). */
+    private LocalDateTime endDateTime;
+    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' h:mm a");
+    private static final DateTimeFormatter SHORT_FORMAT = DateTimeFormatter.ofPattern("MMM dd h:mm a");
+    private static final DateTimeFormatter TIME_ONLY = DateTimeFormatter.ofPattern("h:mm a");
     private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern("EEE, MMM dd");
+    private static final DateTimeFormatter DAY_BLOCK_FORMAT = DateTimeFormatter.ofPattern("EEE MMM d");
     
     private static final ZoneId UTC = ZoneId.of("UTC");
     private static final ZoneId LOCAL = ZoneId.systemDefault();
+    private static final DateTimeFormatter ZONE_ABBR =
+        DateTimeFormatter.ofPattern("z").withZone(LOCAL);
     
     /**
      * Converts the stored UTC dateTime to local timezone.
      */
     private LocalDateTime getLocalDateTime()
     {
+        java.time.ZonedDateTime zoned = getStartZoned();
+        return zoned == null ? null : zoned.toLocalDateTime();
+    }
+
+    /**
+     * Local calendar date for day-block grouping.
+     */
+    public LocalDate getLocalDate()
+    {
+        LocalDateTime local = getLocalDateTime();
+        return local == null ? null : local.toLocalDate();
+    }
+
+    /**
+     * Compact day-block label (e.g. "SAT AUG 15") in local timezone.
+     */
+    public String getDayBlockLabel()
+    {
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
+        {
+            return "TBD";
+        }
+        return local.format(DAY_BLOCK_FORMAT).toUpperCase();
+    }
+
+    /**
+     * True if the event name tags Skill of the Week (SOTW).
+     */
+    public boolean isSkillOfTheWeek()
+    {
+        return nameContainsToken("SOTW");
+    }
+
+    /**
+     * True if the event name tags Boss of the Week (BOTW).
+     */
+    public boolean isBossOfTheWeek()
+    {
+        return nameContainsToken("BOTW");
+    }
+
+    /**
+     * True for weekly spotlight events (SOTW or BOTW).
+     */
+    public boolean isWeeklySpotlight()
+    {
+        return isSkillOfTheWeek() || isBossOfTheWeek();
+    }
+
+    private boolean nameContainsToken(String token)
+    {
+        if (name == null || name.isEmpty())
+        {
+            return false;
+        }
+        String upper = name.toUpperCase();
+        int idx = upper.indexOf(token);
+        while (idx >= 0)
+        {
+            boolean startOk = idx == 0 || !Character.isLetterOrDigit(upper.charAt(idx - 1));
+            int end = idx + token.length();
+            boolean endOk = end >= upper.length() || !Character.isLetterOrDigit(upper.charAt(end));
+            if (startOk && endOk)
+            {
+                return true;
+            }
+            idx = upper.indexOf(token, idx + 1);
+        }
+        return false;
+    }
+
+    /**
+     * Day-block header always includes an explicit date (e.g. "TODAY · SAT AUG 15").
+     */
+    public String getDayBlockHeader()
+    {
+        String label = getDayBlockLabel();
+        if (isToday())
+        {
+            return "TODAY · " + label;
+        }
+        if (isTomorrow())
+        {
+            return "TOMORROW · " + label;
+        }
+        return label;
+    }
+
+    /**
+     * Timeline meta line: "18:00 – 19:00 · in 2h 33m" / "15:00 · passed".
+     * Weekly SOTW/BOTW span a full week from start.
+     */
+    public String getTimelineMetaLine()
+    {
+        if (isWeeklySpotlight())
+        {
+            if (isUpcoming())
+            {
+                return "all week · in " + getTimeUntil();
+            }
+            if (isHappeningNow())
+            {
+                return "all week · " + formatDurationUntil(getEffectiveEndDateTime()) + " left";
+            }
+            return "all week · ended";
+        }
+
+        String time = getTimeRange().replace(" - ", " – ");
+        if (isHappeningNow())
+        {
+            return time + " · now";
+        }
+        if (isUpcoming())
+        {
+            return time + " · in " + getTimeUntil();
+        }
+        return time + " · passed";
+    }
+
+    /**
+     * Effective end instant in UTC. Weekly spotlights last 7 days from start.
+     */
+    public LocalDateTime getEffectiveEndDateTime()
+    {
         if (dateTime == null)
         {
             return null;
         }
-        return dateTime.atZone(UTC).withZoneSameInstant(LOCAL).toLocalDateTime();
+        if (isWeeklySpotlight())
+        {
+            return dateTime.plusDays(7);
+        }
+        if (endDateTime != null)
+        {
+            return endDateTime;
+        }
+        if (endTime != null)
+        {
+            LocalDateTime end = dateTime.toLocalDate().atTime(endTime);
+            if (!end.isAfter(dateTime))
+            {
+                end = end.plusDays(1);
+            }
+            return end;
+        }
+        return dateTime.plusHours(2);
+    }
+
+    /**
+     * True when the event window has fully ended.
+     */
+    public boolean isPast()
+    {
+        LocalDateTime end = getEffectiveEndDateTime();
+        return end != null && !nowUtc().isBefore(end);
     }
     
     /**
@@ -53,13 +207,38 @@ public class ClanEvent implements Comparable<ClanEvent>
      */
     private LocalTime getLocalEndTime()
     {
+        java.time.ZonedDateTime end = getEndZoned();
+        return end == null ? null : end.toLocalTime();
+    }
+
+    private java.time.ZonedDateTime getStartZoned()
+    {
+        if (dateTime == null)
+        {
+            return null;
+        }
+        return dateTime.atZone(UTC).withZoneSameInstant(LOCAL);
+    }
+
+    private java.time.ZonedDateTime getEndZoned()
+    {
+        if (endDateTime != null)
+        {
+            return endDateTime.atZone(UTC).withZoneSameInstant(LOCAL);
+        }
         if (endTime == null || dateTime == null)
         {
             return null;
         }
-        // Create a full datetime for the end time using same date as start
-        LocalDateTime endDateTime = dateTime.toLocalDate().atTime(endTime);
-        return endDateTime.atZone(UTC).withZoneSameInstant(LOCAL).toLocalTime();
+        java.time.ZonedDateTime start = getStartZoned();
+        java.time.ZonedDateTime end = dateTime.toLocalDate().atTime(endTime)
+            .atZone(UTC)
+            .withZoneSameInstant(LOCAL);
+        if (start != null && !end.isAfter(start))
+        {
+            end = end.plusDays(1);
+        }
+        return end;
     }
 
     /**
@@ -67,12 +246,12 @@ public class ClanEvent implements Comparable<ClanEvent>
      */
     public String getFormattedDateTime()
     {
-        LocalDateTime local = getLocalDateTime();
+        java.time.ZonedDateTime local = getStartZoned();
         if (local == null)
         {
             return "TBD";
         }
-        return local.format(DISPLAY_FORMAT);
+        return local.format(DISPLAY_FORMAT) + " " + local.format(ZONE_ABBR);
     }
 
     /**
@@ -80,12 +259,12 @@ public class ClanEvent implements Comparable<ClanEvent>
      */
     public String getShortDateTime()
     {
-        LocalDateTime local = getLocalDateTime();
+        java.time.ZonedDateTime local = getStartZoned();
         if (local == null)
         {
             return "TBD";
         }
-        return local.format(SHORT_FORMAT);
+        return local.format(SHORT_FORMAT) + " " + local.format(ZONE_ABBR);
     }
 
     /**
@@ -102,22 +281,24 @@ public class ClanEvent implements Comparable<ClanEvent>
     }
 
     /**
-     * Returns the time range (e.g., "20:00 - 22:00" or just "20:00") in local timezone.
+     * Returns the time range in the user's local timezone (e.g. "1:00 PM – 2:00 PM PDT").
+     * Sheet times are stored as UTC and converted here.
      */
     public String getTimeRange()
     {
-        LocalDateTime local = getLocalDateTime();
-        if (local == null)
+        java.time.ZonedDateTime start = getStartZoned();
+        if (start == null)
         {
             return "TBD";
         }
-        String start = local.format(TIME_ONLY);
-        LocalTime localEnd = getLocalEndTime();
-        if (localEnd != null)
+        String startStr = start.format(TIME_ONLY);
+        java.time.ZonedDateTime end = getEndZoned();
+        String zone = start.format(ZONE_ABBR);
+        if (end != null)
         {
-            return start + " - " + localEnd.format(TIME_ONLY);
+            return startStr + " – " + end.format(TIME_ONLY) + " " + zone;
         }
-        return start;
+        return startStr + " " + zone;
     }
 
     /**
@@ -180,9 +361,25 @@ public class ClanEvent implements Comparable<ClanEvent>
             return "Started";
         }
 
-        long days = ChronoUnit.DAYS.between(now, dateTime);
-        long hours = ChronoUnit.HOURS.between(now, dateTime) % 24;
-        long minutes = ChronoUnit.MINUTES.between(now, dateTime) % 60;
+        return formatDurationUntil(dateTime);
+    }
+
+    private String formatDurationUntil(LocalDateTime target)
+    {
+        if (target == null)
+        {
+            return "Unknown";
+        }
+
+        LocalDateTime now = nowUtc();
+        if (!target.isAfter(now))
+        {
+            return "0m";
+        }
+
+        long days = ChronoUnit.DAYS.between(now, target);
+        long hours = ChronoUnit.HOURS.between(now, target) % 24;
+        long minutes = ChronoUnit.MINUTES.between(now, target) % 60;
 
         if (days > 0)
         {
@@ -196,6 +393,39 @@ public class ClanEvent implements Comparable<ClanEvent>
         {
             return minutes + "m";
         }
+    }
+
+    /**
+     * Checks if this event is happening tomorrow (in local timezone).
+     */
+    public boolean isTomorrow()
+    {
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
+        {
+            return false;
+        }
+        return local.toLocalDate().equals(LocalDateTime.now().toLocalDate().plusDays(1));
+    }
+
+    /**
+     * Compact when-line for agenda rows (local timezone).
+     * Today/tomorrow: time range only; later/past: day + time.
+     */
+    public String getAgendaWhenLine()
+    {
+        LocalDateTime local = getLocalDateTime();
+        if (local == null)
+        {
+            return "TBD";
+        }
+
+        String time = getTimeRange();
+        if (isToday() || isTomorrow())
+        {
+            return time;
+        }
+        return local.format(DAY_FORMAT) + " · " + time;
     }
 
     /**
@@ -216,6 +446,7 @@ public class ClanEvent implements Comparable<ClanEvent>
 
     /**
      * Checks if this event is currently happening.
+     * Weekly SOTW/BOTW run for 7 days from their start time.
      */
     public boolean isHappeningNow()
     {
@@ -224,11 +455,8 @@ public class ClanEvent implements Comparable<ClanEvent>
             return false;
         }
         LocalDateTime now = nowUtc();
-        LocalDateTime end = endTime != null 
-            ? dateTime.toLocalDate().atTime(endTime) 
-            : dateTime.plusHours(2); // Assume 2 hour default
-            
-        return now.isAfter(dateTime) && now.isBefore(end);
+        LocalDateTime end = getEffectiveEndDateTime();
+        return !now.isBefore(dateTime) && now.isBefore(end);
     }
 
     /**

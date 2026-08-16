@@ -3,17 +3,29 @@ package com.claneventlist;
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
-import net.runelite.api.events.GameTick;
+import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.ClanChannelChanged;
+import net.runelite.api.events.ClanMemberJoined;
+import net.runelite.api.events.ClanMemberLeft;
+import net.runelite.api.events.FriendsChatChanged;
+import net.runelite.api.events.FriendsChatMemberJoined;
+import net.runelite.api.events.FriendsChatMemberLeft;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.events.ScriptPostFired;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.NpcLootReceived;
+import net.runelite.client.events.PlayerLootReceived;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 
@@ -24,13 +36,14 @@ import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 @PluginDescriptor(
-    name = "Clan Event List",
-    description = "Display clan events from a Google Sheet with an overlay and side panel",
-    tags = {"clan", "events", "calendar", "schedule", "google", "sheet"}
+    name = "Ironforged Clan Events",
+    description = "Display Iron Forged clan events from api.ironforged.gg in a side panel, with optional Seasonal Event Passphrase overlay and notable-drop submit",
+    tags = {"clan", "events", "calendar", "schedule", "seasonal", "ironforged", "teams"}
 )
 public class EventListPlugin extends Plugin
 {
-    private static final String ICON_PATH = "calendar_icon.png";
+    private static final String ICON_PATH = "ironforged_icon.png";
+    private static final int NAV_ICON_SIZE = 16;
 
     @Inject
     private EventListConfig config;
@@ -39,24 +52,42 @@ public class EventListPlugin extends Plugin
     private ConfigManager configManager;
 
     @Inject
+    private ColorPickerManager colorPickerManager;
+
+    @Inject
+    private ItemManager itemManager;
+
+    @Inject
+    private SpriteManager spriteManager;
+
+    @Inject
     private OverlayManager overlayManager;
 
     @Inject
     private ClientToolbar clientToolbar;
 
     @Inject
-    private GoogleSheetService sheetService;
+    private EventsApiService eventsApiService;
+
+    @Inject
+    private SeasonalCatalogService seasonalCatalogService;
+
+    @Inject
+    private SeasonalDropSubmitService seasonalDropSubmitService;
+
+    @Inject
+    private EventTeamService eventTeamService;
+
+    @Inject
+    private EventTeamSyncService eventTeamSyncService;
+
+    @Inject
+    private EventTeamOverlay eventTeamOverlay;
 
     @Inject
     private ScheduledExecutorService executorService;
 
-    @Inject
-    private SeasonalReporterService seasonalReporterService;
-
-    @Inject
-    private SeasonalPassphraseOverlay seasonalPassphraseOverlay;
-
-    private EventListOverlay overlay;
+    private SeasonalEventPassphraseOverlay passphraseOverlay;
     private EventListPanel panel;
     private NavigationButton navButton;
     private boolean initialized = false;
@@ -64,31 +95,37 @@ public class EventListPlugin extends Plugin
     @Override
     protected void startUp() throws Exception
     {
-        log.info("Clan Event List plugin started");
+        log.info("Ironforged Clan Events plugin started");
 
-        // Create overlay
-        overlay = new EventListOverlay(config, sheetService);
-        overlayManager.add(overlay);
-        overlayManager.add(seasonalPassphraseOverlay);
+        migrateLegacyBingoConfig();
+        // Free-text host was replaced by the Use dev API toggle.
+        configManager.unsetConfiguration(EventListConfig.CONFIG_GROUP, "pluginApiBase");
 
-        // Create panel
+        passphraseOverlay = new SeasonalEventPassphraseOverlay(config, seasonalCatalogService);
+        overlayManager.add(passphraseOverlay);
+        overlayManager.add(eventTeamOverlay);
+
         panel = new EventListPanel(
             config,
-            sheetService,
+            configManager,
+            colorPickerManager,
+            itemManager,
+            spriteManager,
+            eventsApiService,
+            seasonalCatalogService,
+            seasonalDropSubmitService,
+            eventTeamService,
+            eventTeamSyncService,
             this::refreshEvents,
-            this::linkSeasonal,
-            this::testSeasonalApi,
-            this::flushSeasonalQueue,
-            this::clearSeasonalQueue,
-            this::refreshSeasonalManifest,
-            this::enqueueSeasonalDebugDrop
+            this::refreshSeasonalCatalog,
+            this::testSeasonalSubmit,
+            this::syncTeams
         );
 
-        // Create navigation button with icon
-        BufferedImage icon = createCalendarIcon();
+        BufferedImage icon = loadPluginIcon();
 
         navButton = NavigationButton.builder()
-            .tooltip("Clan Events")
+            .tooltip("Ironforged Clan Events")
             .icon(icon)
             .priority(5)
             .panel(panel)
@@ -96,27 +133,36 @@ public class EventListPlugin extends Plugin
 
         clientToolbar.addNavigation(navButton);
 
-        // Initial fetch
         initialized = true;
-        seasonalReporterService.start();
+        seasonalDropSubmitService.setStatusListener(() ->
+        {
+            if (panel != null)
+            {
+                panel.updateSeasonalSection();
+            }
+        });
+        seasonalDropSubmitService.start();
+        eventTeamService.start();
         refreshEvents();
-        updateSeasonalTelemetry();
+        refreshSeasonalCatalog();
     }
 
     @Override
     protected void shutDown() throws Exception
     {
-        log.info("Clan Event List plugin stopped");
+        log.info("Ironforged Clan Events plugin stopped");
 
-        overlayManager.remove(overlay);
-        overlayManager.remove(seasonalPassphraseOverlay);
+        overlayManager.remove(passphraseOverlay);
+        overlayManager.remove(eventTeamOverlay);
         clientToolbar.removeNavigation(navButton);
+        seasonalCatalogService.clear();
+        seasonalDropSubmitService.setStatusListener(null);
+        eventTeamService.stop();
 
         initialized = false;
-        overlay = null;
+        passphraseOverlay = null;
         panel = null;
         navButton = null;
-        seasonalReporterService.stop();
     }
 
     @Subscribe
@@ -124,11 +170,106 @@ public class EventListPlugin extends Plugin
     {
         if (event.getGameState() == GameState.LOGGED_IN && initialized)
         {
-            // Refresh events when logging in if cache is stale
-            if (sheetService.needsRefresh(config.refreshInterval()))
+            seasonalDropSubmitService.refreshProfileKey();
+            eventTeamService.refreshSurfaces();
+            if (panel != null)
+            {
+                panel.updateSeasonalSection();
+                panel.refreshTeamsOnlineCounts();
+            }
+            if (eventsApiService.needsRefresh(config.refreshInterval()))
             {
                 refreshEvents();
             }
+            if ((config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+                && seasonalCatalogService.needsRefresh(config.seasonalCatalogRefreshInterval()))
+            {
+                refreshSeasonalCatalog();
+            }
+        }
+    }
+
+    @Subscribe
+    public void onNpcLootReceived(NpcLootReceived event)
+    {
+        seasonalDropSubmitService.onNpcLootReceived(event);
+    }
+
+    @Subscribe
+    public void onPlayerLootReceived(PlayerLootReceived event)
+    {
+        seasonalDropSubmitService.onPlayerLootReceived(event);
+    }
+
+    @Subscribe
+    public void onChatMessage(ChatMessage event)
+    {
+        eventTeamService.onChatMessage(event);
+    }
+
+    @Subscribe
+    public void onScriptCallbackEvent(ScriptCallbackEvent event)
+    {
+        eventTeamService.onScriptCallbackEvent(event);
+    }
+
+    @Subscribe
+    public void onScriptPostFired(ScriptPostFired event)
+    {
+        eventTeamService.onScriptPostFired(event);
+    }
+
+    @Subscribe
+    public void onClanChannelChanged(ClanChannelChanged event)
+    {
+        if (panel != null)
+        {
+            panel.refreshTeamsOnlineCounts();
+        }
+    }
+
+    @Subscribe
+    public void onClanMemberJoined(ClanMemberJoined event)
+    {
+        if (panel != null)
+        {
+            panel.refreshTeamsOnlineCounts();
+        }
+    }
+
+    @Subscribe
+    public void onClanMemberLeft(ClanMemberLeft event)
+    {
+        if (panel != null)
+        {
+            panel.refreshTeamsOnlineCounts();
+        }
+    }
+
+    @Subscribe
+    public void onFriendsChatChanged(FriendsChatChanged event)
+    {
+        if (panel != null)
+        {
+            panel.refreshTeamsOnlineCounts();
+        }
+    }
+
+    @Subscribe
+    public void onFriendsChatMemberJoined(FriendsChatMemberJoined event)
+    {
+        if (panel != null)
+        {
+            panel.refreshTeamsOnlineCounts();
+        }
+    }
+
+    @Subscribe
+    public void onFriendsChatMemberLeft(FriendsChatMemberLeft event)
+    {
+        if (panel != null)
+        {
+            panel.refreshTeamsOnlineCounts();
         }
     }
 
@@ -140,13 +281,69 @@ public class EventListPlugin extends Plugin
             return;
         }
 
-        // Refresh when sheet configuration changes
-        if (event.getKey().equals("sheetId") || event.getKey().equals("sheetName"))
+        String key = event.getKey();
+        if (key != null && (key.startsWith("team")
+            || key.equals("enableTeamIcons")
+            || key.equals("enableTeamRosterSync")
+            || key.equals("teamCount")
+            || key.equals("nameplateTeamIcons")
+            || key.equals("friendsListTeamIcons")
+            || key.equals("clanListTeamIcons")
+            || key.equals("broadcastTeamIcons")))
         {
-            refreshEvents();
+            eventTeamService.onConfigChanged(key);
+            if (panel != null)
+            {
+                if ("teamCount".equals(key) || (key != null && key.startsWith("team") && key.endsWith("Names"))
+                    || (key != null && key.startsWith("team") && key.endsWith("Label")))
+                {
+                    panel.rebuildTeamsUi();
+                }
+                else
+                {
+                    panel.refreshTeamsOnlineCounts();
+                    panel.updateTeamsSyncLabel();
+                }
+            }
+            if ("enableTeamRosterSync".equals(key) && config.enableTeamRosterSync())
+            {
+                syncTeams();
+            }
         }
 
-        // Update panel display settings
+        if (event.getKey().equals("enableEventsFeed") || event.getKey().equals("useDevApi"))
+        {
+            refreshEvents();
+            if (config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+            {
+                refreshSeasonalCatalog();
+            }
+            else if (panel != null)
+            {
+                panel.updateSeasonalSection();
+            }
+        }
+
+        if (event.getKey().equals("enableSeasonalSubmit")
+            || event.getKey().equals("showSeasonalEventPassphrase"))
+        {
+            if (config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+            {
+                refreshSeasonalCatalog();
+            }
+            else if (!config.enableSeasonalSubmit())
+            {
+                if (!config.showSeasonalEventPassphrase())
+                {
+                    seasonalCatalogService.clear();
+                }
+                if (panel != null)
+                {
+                    panel.updateSeasonalSection();
+                }
+            }
+        }
+
         if (event.getKey().equals("showPastEvents") || event.getKey().equals("maxEventsShown"))
         {
             if (panel != null)
@@ -154,42 +351,8 @@ public class EventListPlugin extends Plugin
                 panel.updateEvents();
             }
         }
-
-        if (event.getKey().equals("seasonalEnabled") || event.getKey().equals("seasonalDryRun"))
-        {
-            updateSeasonalTelemetry();
-        }
-
-        if (event.getKey().equals("seasonalAllowedDrops")
-            || event.getKey().equals("seasonalAllowedDropsJson")
-            || event.getKey().equals("seasonalAllowedDropsJsonPath"))
-        {
-            refreshSeasonalManifest();
-        }
-
-        if (event.getKey().equals("seasonalLinkNow") && "true".equals(event.getNewValue()))
-        {
-            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "seasonalLinkNow", false);
-            linkSeasonal();
-        }
-
-        if (event.getKey().equals("seasonalTestApiNow") && "true".equals(event.getNewValue()))
-        {
-            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "seasonalTestApiNow", false);
-            testSeasonalApi();
-        }
-
-        if (event.getKey().equals("seasonalFlushQueueNow") && "true".equals(event.getNewValue()))
-        {
-            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "seasonalFlushQueueNow", false);
-            flushSeasonalQueue();
-        }
     }
 
-    /**
-     * Scheduled task to periodically refresh events.
-     * Runs every minute and checks if a refresh is needed based on config.
-     */
     @Schedule(period = 1, unit = ChronoUnit.MINUTES)
     public void scheduledRefresh()
     {
@@ -198,69 +361,39 @@ public class EventListPlugin extends Plugin
             return;
         }
 
-        if (sheetService.needsRefresh(config.refreshInterval()))
+        if (eventsApiService.needsRefresh(config.refreshInterval()))
         {
             log.debug("Scheduled refresh triggered");
             refreshEvents();
         }
-        else
+        else if (panel != null)
         {
-            // Just update the panel to refresh time displays
-            if (panel != null)
-            {
-                panel.updateEvents();
-            }
+            panel.updateEvents();
+        }
+
+        if ((config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+            && seasonalCatalogService.needsRefresh(config.seasonalCatalogRefreshInterval()))
+        {
+            refreshSeasonalCatalog();
+        }
+
+        if (config.enableSeasonalSubmit())
+        {
+            seasonalDropSubmitService.processQueue();
+        }
+
+        if (config.enableTeamRosterSync()
+            && eventTeamSyncService.needsRefresh(config.seasonalCatalogRefreshInterval()))
+        {
+            syncTeams();
+        }
+
+        if (panel != null && config.enableTeamIcons())
+        {
+            panel.refreshTeamsOnlineCounts();
         }
     }
 
-    /**
-     * Scheduled task to process seasonal queue in the background.
-     */
-    @Schedule(period = 10, unit = ChronoUnit.SECONDS)
-    public void scheduledSeasonalQueue()
-    {
-        if (!initialized)
-        {
-            return;
-        }
-
-        executorService.submit(() ->
-        {
-            seasonalReporterService.processQueue();
-            updateSeasonalTelemetry();
-        });
-    }
-
-    @Schedule(period = 5, unit = ChronoUnit.MINUTES)
-    public void scheduledSeasonalManifestRefresh()
-    {
-        if (!initialized)
-        {
-            return;
-        }
-        executorService.submit(() ->
-        {
-            seasonalReporterService.refreshManifest();
-            updateSeasonalTelemetry();
-        });
-    }
-
-    @Subscribe
-    public void onGameTick(GameTick gameTick)
-    {
-        seasonalReporterService.onGameTick();
-    }
-
-    @Subscribe
-    public void onNpcLootReceived(NpcLootReceived event)
-    {
-        seasonalReporterService.onNpcLootReceived(event);
-        updateSeasonalTelemetry();
-    }
-
-    /**
-     * Refreshes the event data from Google Sheets.
-     */
     public void refreshEvents()
     {
         if (!initialized)
@@ -268,12 +401,10 @@ public class EventListPlugin extends Plugin
             return;
         }
 
-        String sheetId = config.sheetId();
-        if (sheetId == null || sheetId.trim().isEmpty())
+        if (!config.enableEventsFeed())
         {
-            log.debug("No sheet ID configured, clearing events");
-            // Clear events when sheet ID is removed
-            sheetService.clearEvents();
+            log.debug("Events feed disabled");
+            eventsApiService.clearEvents();
             if (panel != null)
             {
                 panel.updateEvents();
@@ -286,15 +417,15 @@ public class EventListPlugin extends Plugin
             panel.showLoading();
         }
 
-        executorService.submit(() -> {
+        executorService.submit(() ->
+        {
             try
             {
-                sheetService.fetchEvents(config.sheetId(), config.sheetName());
+                eventsApiService.fetchEvents();
 
                 if (panel != null)
                 {
                     panel.updateEvents();
-                    updateSeasonalTelemetry();
                 }
 
                 log.debug("Events refreshed successfully");
@@ -304,121 +435,200 @@ public class EventListPlugin extends Plugin
                 log.warn("Failed to refresh events: {}", e.getMessage());
                 if (panel != null)
                 {
-                    panel.showError("Failed to fetch events.<br>Check your Sheet ID.");
+                    panel.showError("Failed to fetch events.<br>Try again later.");
                 }
             }
         });
     }
 
-    private void updateSeasonalTelemetry()
+    public void refreshSeasonalCatalog()
     {
-        if (panel != null)
+        if (!initialized)
         {
-            panel.updateSeasonalTelemetry(seasonalReporterService.getTelemetry());
+            return;
         }
-    }
+        if (!config.enableSeasonalSubmit() && !config.showSeasonalEventPassphrase())
+        {
+            return;
+        }
 
-    private void linkSeasonal()
-    {
         executorService.submit(() ->
         {
-            seasonalReporterService.linkWithConnectCode(config.seasonalConnectCode());
-            updateSeasonalTelemetry();
+            try
+            {
+                seasonalCatalogService.refresh();
+                log.debug(
+                    "Seasonal catalog: {} entries id={} key={}",
+                    seasonalCatalogService.catalogSize(),
+                    seasonalCatalogService.getEventId(),
+                    seasonalCatalogService.getEventPassphrase()
+                );
+            }
+            catch (Exception e)
+            {
+                log.warn("Failed to refresh seasonal catalog: {}", e.getMessage());
+            }
+            finally
+            {
+                if (panel != null)
+                {
+                    panel.updateSeasonalSection();
+                }
+            }
         });
     }
 
-    private void testSeasonalApi()
+    public void syncTeams()
     {
+        if (!initialized)
+        {
+            return;
+        }
+
         executorService.submit(() ->
         {
-            seasonalReporterService.testApi();
-            updateSeasonalTelemetry();
+            boolean updated = eventTeamSyncService.syncNow();
+            if (panel != null)
+            {
+                if (updated)
+                {
+                    panel.rebuildTeamsUi();
+                }
+                panel.updateTeamsSyncLabel();
+            }
         });
     }
 
-    private void flushSeasonalQueue()
+    public void testSeasonalSubmit()
     {
+        if (!initialized)
+        {
+            return;
+        }
+
         executorService.submit(() ->
         {
-            seasonalReporterService.flushQueueNow();
-            updateSeasonalTelemetry();
+            if (config.enableSeasonalSubmit()
+                && (seasonalCatalogService.catalogSize() == 0 || seasonalCatalogService.needsRefresh(1)))
+            {
+                seasonalCatalogService.refresh();
+            }
+            seasonalDropSubmitService.submitTestDrop();
+            if (panel != null)
+            {
+                panel.updateSeasonalSection();
+            }
         });
     }
 
-    private void refreshSeasonalManifest()
+    private BufferedImage loadPluginIcon()
     {
-        executorService.submit(() ->
+        try
         {
-            seasonalReporterService.refreshManifest();
-            updateSeasonalTelemetry();
-        });
-    }
+            BufferedImage image = ImageUtil.loadImageResource(getClass(), ICON_PATH);
+            return ImageUtil.resizeImage(image, NAV_ICON_SIZE, NAV_ICON_SIZE);
+        }
+        catch (IllegalArgumentException e)
+        {
+            log.debug("Iron Forged icon resource missing, using drawn fallback");
+        }
 
-    private void clearSeasonalQueue()
-    {
-        executorService.submit(() ->
-        {
-            seasonalReporterService.clearQueueNow();
-            updateSeasonalTelemetry();
-        });
-    }
+        BufferedImage icon = new BufferedImage(NAV_ICON_SIZE, NAV_ICON_SIZE, BufferedImage.TYPE_INT_ARGB);
+        int gold = 0xFFFFC800;
+        int goldDark = 0xFFB48200;
+        int body = 0xFFE6E6E6;
+        int ink = 0xFF373737;
+        int ring = 0xFF787878;
+        int live = 0xFF64DC64;
 
-    private void enqueueSeasonalDebugDrop()
-    {
-        executorService.submit(() ->
+        for (int x : new int[]{3, 4, 10, 11})
         {
-            seasonalReporterService.enqueueDebugDrop();
-            updateSeasonalTelemetry();
-        });
+            icon.setRGB(x, 1, ring);
+            icon.setRGB(x, 2, ring);
+        }
+
+        for (int x = 1; x <= 14; x++)
+        {
+            icon.setRGB(x, 3, gold);
+            icon.setRGB(x, 4, gold);
+            icon.setRGB(x, 5, goldDark);
+            for (int y = 6; y <= 14; y++)
+            {
+                icon.setRGB(x, y, body);
+            }
+        }
+
+        for (int x = 1; x <= 14; x++)
+        {
+            icon.setRGB(x, 3, ink);
+            icon.setRGB(x, 14, ink);
+        }
+        for (int y = 3; y <= 14; y++)
+        {
+            icon.setRGB(1, y, ink);
+            icon.setRGB(14, y, ink);
+        }
+
+        int[][] dots = {
+            {3, 7}, {6, 7}, {9, 7}, {12, 7},
+            {3, 10}, {6, 10}, {9, 10},
+            {3, 13}, {6, 13}
+        };
+        for (int[] p : dots)
+        {
+            icon.setRGB(p[0], p[1], ink);
+            icon.setRGB(p[0] + 1, p[1], ink);
+        }
+
+        for (int x = 9; x <= 12; x++)
+        {
+            icon.setRGB(x, 10, gold);
+            icon.setRGB(x, 11, gold);
+        }
+        icon.setRGB(10, 11, live);
+        icon.setRGB(11, 11, live);
+
+        return icon;
     }
 
     /**
-     * Creates a simple calendar icon for the navigation button.
+     * Migrates bingo-* and intermediate keyword-* config keys to Seasonal Event Passphrase keys.
      */
-    private BufferedImage createCalendarIcon()
+    private void migrateLegacyBingoConfig()
     {
-        // Try to load from resources first
-        try
+        migrateConfigKey("showBingoKeyword", "showSeasonalEventPassphrase");
+        migrateConfigKey("showSeasonalEventKeyword", "showSeasonalEventPassphrase");
+
+        migrateConfigKey("bingoKeyword", "seasonalEventPassphrase");
+        migrateConfigKey("seasonalEventKeyword", "seasonalEventPassphrase");
+        migrateConfigKey("seasonalSubmitPassphrase", "seasonalEventPassphrase");
+
+        migrateConfigKey("showBingoDateTime", "showSeasonalEventDateTime");
+
+        migrateConfigKey("bingoKeywordColor", "seasonalEventPassphraseColor");
+        migrateConfigKey("seasonalEventKeywordColor", "seasonalEventPassphraseColor");
+
+        migrateConfigKey("bingoDateTimeColor", "seasonalEventDateTimeColor");
+
+        migrateConfigKey("bingoKeywordBackgroundColor", "seasonalEventPassphraseBackgroundColor");
+        migrateConfigKey("seasonalEventKeywordBackgroundColor", "seasonalEventPassphraseBackgroundColor");
+    }
+
+    private void migrateConfigKey(String oldKey, String newKey)
+    {
+        String existing = configManager.getConfiguration(EventListConfig.CONFIG_GROUP, newKey);
+        if (existing != null)
         {
-            return ImageUtil.loadImageResource(getClass(), ICON_PATH);
+            return;
         }
-        catch (Exception e)
+        String legacy = configManager.getConfiguration(EventListConfig.CONFIG_GROUP, oldKey);
+        if (legacy == null)
         {
-            log.debug("Calendar icon not found, creating programmatically");
+            return;
         }
-
-        // Create a simple calendar icon programmatically
-        BufferedImage icon = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-        java.awt.Graphics2D g = icon.createGraphics();
-        
-        // Enable anti-aliasing
-        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, 
-            java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-
-        // Calendar body (white/light gray)
-        g.setColor(new java.awt.Color(220, 220, 220));
-        g.fillRoundRect(1, 3, 14, 12, 2, 2);
-
-        // Calendar header (gold/accent)
-        g.setColor(new java.awt.Color(255, 200, 0));
-        g.fillRoundRect(1, 3, 14, 4, 2, 2);
-        g.fillRect(1, 5, 14, 2);
-
-        // Calendar rings
-        g.setColor(new java.awt.Color(100, 100, 100));
-        g.fillRect(4, 1, 2, 4);
-        g.fillRect(10, 1, 2, 4);
-
-        // Calendar dots (representing dates)
-        g.setColor(new java.awt.Color(80, 80, 80));
-        g.fillRect(3, 9, 2, 2);
-        g.fillRect(7, 9, 2, 2);
-        g.fillRect(11, 9, 2, 2);
-        g.fillRect(3, 12, 2, 2);
-        g.fillRect(7, 12, 2, 2);
-
-        g.dispose();
-        return icon;
+        configManager.setConfiguration(EventListConfig.CONFIG_GROUP, newKey, legacy);
+        configManager.unsetConfiguration(EventListConfig.CONFIG_GROUP, oldKey);
+        log.debug("Migrated config {} -> {}", oldKey, newKey);
     }
 
     @Provides
@@ -427,4 +637,3 @@ public class EventListPlugin extends Plugin
         return configManager.getConfig(EventListConfig.class);
     }
 }
-

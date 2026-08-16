@@ -1,20 +1,39 @@
 package com.claneventlist;
 
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
- * Side panel that displays a list of all clan events.
+ * Side panel: vertical timeline rail for Ironforged clan events.
  */
 @Slf4j
 public class EventListPanel extends PluginPanel
@@ -22,75 +41,525 @@ public class EventListPanel extends PluginPanel
     private static final Color BACKGROUND_COLOR = ColorScheme.DARK_GRAY_COLOR;
     private static final Color PANEL_COLOR = ColorScheme.DARKER_GRAY_COLOR;
     private static final Color HOVER_COLOR = ColorScheme.DARK_GRAY_HOVER_COLOR;
-    private static final Color ACCENT_COLOR = new Color(255, 200, 0);
-    private static final Color IMMINENT_COLOR = new Color(255, 100, 100);
-    private static final Color HAPPENING_COLOR = new Color(100, 255, 100);
+    /** Mockup orange accent for title / next event. */
+    private static final Color ACCENT_COLOR = new Color(232, 140, 36);
+    /** Live / happening now. */
+    private static final Color[] TONE_LIVE = {
+        new Color(72, 196, 88),
+        new Color(96, 210, 110),
+        new Color(52, 170, 78),
+        new Color(120, 220, 140),
+    };
+    /** Today, not currently live. */
+    private static final Color[] TONE_TODAY = {
+        new Color(232, 140, 36),
+        new Color(240, 168, 64),
+        new Color(210, 118, 28),
+        new Color(246, 188, 96),
+    };
+    /** Upcoming (future days). */
+    private static final Color[] TONE_FUTURE = {
+        new Color(70, 168, 236),
+        new Color(100, 186, 246),
+        new Color(50, 140, 210),
+        new Color(130, 200, 250),
+    };
+    /** Already ended. */
+    private static final Color[] TONE_PAST = {
+        new Color(140, 140, 140),
+        new Color(120, 120, 120),
+        new Color(158, 158, 158),
+        new Color(108, 108, 108),
+    };
     private static final Color LINK_COLOR = new Color(100, 180, 255);
     private static final Color TEXT_COLOR = Color.WHITE;
     private static final Color SECONDARY_TEXT = ColorScheme.LIGHT_GRAY_COLOR;
-    
-    private static final int EVENT_SPACING = 8;
-    private static final int MAX_DESC_LENGTH = 400;
-    // RuneLite panel is ~225px usable, minus padding = content width
-    private static final int CONTENT_WIDTH = 205;
-    private static final int TEXT_WIDTH = 140; // Text wrap width (account for emoji + padding + borders)
-    
-    private static boolean DEBUG_SIZES = false;
+    private static final Color MUTED_TEXT = new Color(140, 140, 140);
+    private static final Color RAIL_COLOR = new Color(90, 90, 90);
+
+    private enum EventTone
+    {
+        LIVE,
+        TODAY,
+        FUTURE,
+        PAST
+    }
+
+    private static final int RAIL_WIDTH = 14;
+    private static final int NODE_SIZE = 8;
+    private static final int CONTENT_WIDTH = PluginPanel.PANEL_WIDTH;
+    private static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - RAIL_WIDTH - 20;
+    private static final int SIDE_PAD = 6;
+    private static final int MAX_DESC_LENGTH = 280;
 
     private final EventListConfig config;
-    private final GoogleSheetService sheetService;
+    private final ConfigManager configManager;
+    private final ColorPickerManager colorPickerManager;
+    private final ItemManager itemManager;
+    private final SpriteManager spriteManager;
+    private final EventsApiService eventsApiService;
+    private final SeasonalCatalogService seasonalCatalogService;
+    private final SeasonalDropSubmitService seasonalDropSubmitService;
+    private final EventTeamService eventTeamService;
+    private final EventTeamSyncService eventTeamSyncService;
     private final Runnable refreshCallback;
-    private final Runnable seasonalLinkCallback;
-    private final Runnable seasonalTestCallback;
-    private final Runnable seasonalFlushCallback;
-    private final Runnable seasonalClearQueueCallback;
-    private final Runnable seasonalManifestRefreshCallback;
-    private final Runnable seasonalDebugDropCallback;
+    private final Runnable refreshCatalogCallback;
+    private final Runnable testSubmitCallback;
+    private final Runnable syncTeamsCallback;
 
     private JPanel eventsContainer;
+    private JScrollPane eventsScrollPane;
+    private JScrollPane seasonalScrollPane;
+    private JPanel seasonalSection;
+    private JLabel seasonalStatusLabel;
+    private JLabel seasonalHintLabel;
+    private JButton viewAllowedDropsButton;
+    private JLabel viewAllowedDropsCountLabel;
+    private JPanel historyList;
+    private JLabel historyMetaLabel;
+    private JLabel debugStatusLabel;
+    private JLabel teamsConflictLabel;
+    private JLabel teamsSyncLabel;
+    private JPanel teamsContainer;
+    private final Map<Integer, JLabel> teamLabels = new HashMap<>();
+    private final Map<Integer, JTextArea> teamAreas = new HashMap<>();
+    private JSpinner teamCountSpinner;
     private JLabel statusLabel;
     private JLabel lastUpdateLabel;
-    private JLabel seasonalStatusLabel;
-    private CardLayout contentLayout;
-    private JPanel contentPanel;
-    private JButton eventsTabButton;
-    private JButton seasonalTabButton;
-    private JLabel seasonalLinkLabel;
-    private JLabel seasonalCountsLabel;
-    private JLabel seasonalManifestLabel;
-    private JLabel seasonalApiLabel;
-    private JLabel seasonalErrorLabel;
+    private HealthDot healthDot;
+    private JTabbedPane tabs;
+
+    /** Identity of the expanded timeline row, or null. */
+    private String expandedEventKey;
+
+    /** Viewport width used when rows were last built; triggers rebuild when it changes. */
+    private int laidOutViewportWidth;
 
     public EventListPanel(
         EventListConfig config,
-        GoogleSheetService sheetService,
+        ConfigManager configManager,
+        ColorPickerManager colorPickerManager,
+        ItemManager itemManager,
+        SpriteManager spriteManager,
+        EventsApiService eventsApiService,
+        SeasonalCatalogService seasonalCatalogService,
+        SeasonalDropSubmitService seasonalDropSubmitService,
+        EventTeamService eventTeamService,
+        EventTeamSyncService eventTeamSyncService,
         Runnable refreshCallback,
-        Runnable seasonalLinkCallback,
-        Runnable seasonalTestCallback,
-        Runnable seasonalFlushCallback,
-        Runnable seasonalClearQueueCallback,
-        Runnable seasonalManifestRefreshCallback,
-        Runnable seasonalDebugDropCallback
+        Runnable refreshCatalogCallback,
+        Runnable testSubmitCallback,
+        Runnable syncTeamsCallback
     )
     {
-        super(false); // Don't wrap content - we handle our own scrolling
-        
+        super(false);
+
         this.config = config;
-        this.sheetService = sheetService;
+        this.configManager = configManager;
+        this.colorPickerManager = colorPickerManager;
+        this.itemManager = itemManager;
+        this.spriteManager = spriteManager;
+        this.eventsApiService = eventsApiService;
+        this.seasonalCatalogService = seasonalCatalogService;
+        this.seasonalDropSubmitService = seasonalDropSubmitService;
+        this.eventTeamService = eventTeamService;
+        this.eventTeamSyncService = eventTeamSyncService;
         this.refreshCallback = refreshCallback;
-        this.seasonalLinkCallback = seasonalLinkCallback;
-        this.seasonalTestCallback = seasonalTestCallback;
-        this.seasonalFlushCallback = seasonalFlushCallback;
-        this.seasonalClearQueueCallback = seasonalClearQueueCallback;
-        this.seasonalManifestRefreshCallback = seasonalManifestRefreshCallback;
-        this.seasonalDebugDropCallback = seasonalDebugDropCallback;
+        this.refreshCatalogCallback = refreshCatalogCallback;
+        this.testSubmitCallback = testSubmitCallback;
+        this.syncTeamsCallback = syncTeamsCallback;
 
         setLayout(new BorderLayout());
         setBackground(BACKGROUND_COLOR);
 
         add(createHeaderPanel(), BorderLayout.NORTH);
-        add(createContentPanel(), BorderLayout.CENTER);
+
+        tabs = new JTabbedPane();
+        tabs.setBackground(BACKGROUND_COLOR);
+        tabs.setForeground(TEXT_COLOR);
+        tabs.addTab("Events", createEventsTab());
+        tabs.addTab("Seasonal", createSeasonalTab());
+        tabs.addTab("Debug", createDebugTab());
+        add(tabs, BorderLayout.CENTER);
         add(createFooterPanel(), BorderLayout.SOUTH);
+
+        refreshHealthDot();
+        updateSeasonalSection();
+        rebuildTeamsUi();
+    }
+
+    private JPanel createEventsTab()
+    {
+        JPanel tab = new JPanel(new BorderLayout());
+        tab.setBackground(BACKGROUND_COLOR);
+        tab.add(createEventsScrollPane(), BorderLayout.CENTER);
+        return tab;
+    }
+
+    private JPanel createSeasonalTab()
+    {
+        // Same width-tracking pattern as Events — otherwise BoxLayout children overflow and clip.
+        JPanel body = new JPanel()
+        {
+            @Override
+            public Dimension getPreferredSize()
+            {
+                Dimension pref = super.getPreferredSize();
+                return new Dimension(seasonalViewportWidth(), pref.height);
+            }
+
+            @Override
+            public Dimension getMinimumSize()
+            {
+                return new Dimension(0, super.getMinimumSize().height);
+            }
+
+            @Override
+            public Dimension getMaximumSize()
+            {
+                return new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
+            }
+        };
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBackground(BACKGROUND_COLOR);
+        body.setBorder(new EmptyBorder(8, SIDE_PAD, 8, SIDE_PAD));
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        body.add(createSeasonalStatusCard());
+        body.add(Box.createVerticalStrut(12));
+        body.add(createSeasonalTeamsSection());
+        body.add(Box.createVerticalStrut(12));
+        body.add(createSeasonalHistorySection());
+
+        seasonalScrollPane = new JScrollPane(new ScrollableWidthPanel(body));
+        seasonalScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        seasonalScrollPane.setBackground(BACKGROUND_COLOR);
+        seasonalScrollPane.getViewport().setBackground(BACKGROUND_COLOR);
+        seasonalScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        seasonalScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        seasonalScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        JPanel tab = new JPanel(new BorderLayout());
+        tab.setBackground(BACKGROUND_COLOR);
+        tab.add(seasonalScrollPane, BorderLayout.CENTER);
+        return tab;
+    }
+
+    private int seasonalViewportWidth()
+    {
+        if (seasonalScrollPane != null)
+        {
+            int w = seasonalScrollPane.getViewport().getWidth();
+            if (w > 0)
+            {
+                return w;
+            }
+        }
+        return Math.max(1, PluginPanel.PANEL_WIDTH);
+    }
+
+    private void constrainSeasonalSection(JPanel section)
+    {
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.setMinimumSize(new Dimension(0, 1));
+        section.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+    }
+
+    private JPanel createSeasonalStatusCard()
+    {
+        seasonalSection = new JPanel();
+        seasonalSection.setLayout(new BoxLayout(seasonalSection, BoxLayout.Y_AXIS));
+        seasonalSection.setBackground(PANEL_COLOR);
+        seasonalSection.setBorder(new EmptyBorder(8, 8, 8, 8));
+        constrainSeasonalSection(seasonalSection);
+
+        JLabel heading = new JLabel("Seasonal event");
+        heading.setFont(FontManager.getRunescapeBoldFont());
+        heading.setForeground(ACCENT_COLOR);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        seasonalSection.add(heading);
+
+        seasonalStatusLabel = new JLabel(" ");
+        seasonalStatusLabel.setFont(FontManager.getRunescapeSmallFont());
+        seasonalStatusLabel.setForeground(SECONDARY_TEXT);
+        seasonalStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        seasonalStatusLabel.setBorder(new EmptyBorder(4, 0, 4, 0));
+        seasonalSection.add(seasonalStatusLabel);
+
+        seasonalHintLabel = new JLabel("<html>Eligible boss drops are submitted automatically when "
+            + "Seasonal Drop Submit is enabled in plugin config.</html>");
+        seasonalHintLabel.setFont(FontManager.getRunescapeSmallFont());
+        seasonalHintLabel.setForeground(MUTED_TEXT);
+        seasonalHintLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        seasonalHintLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        seasonalSection.add(seasonalHintLabel);
+
+        seasonalSection.add(Box.createVerticalStrut(8));
+        seasonalSection.add(createViewAllowedDropsButton());
+
+        return seasonalSection;
+    }
+
+    private JPanel createViewAllowedDropsButton()
+    {
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setOpaque(false);
+        wrap.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+
+        viewAllowedDropsButton = new JButton();
+        viewAllowedDropsButton.setLayout(new BorderLayout(10, 0));
+        viewAllowedDropsButton.setBackground(BACKGROUND_COLOR);
+        viewAllowedDropsButton.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(90, 90, 90)),
+            new EmptyBorder(8, 10, 8, 10)));
+        viewAllowedDropsButton.setFocusPainted(false);
+        viewAllowedDropsButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        viewAllowedDropsButton.setToolTipText("Browse the seasonal allowlist");
+        viewAllowedDropsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        viewAllowedDropsButton.addActionListener(e -> showAllowedDropsDialog());
+
+        JLabel iconLabel = new JLabel();
+        iconLabel.setPreferredSize(new Dimension(24, 24));
+        iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        viewAllowedDropsButton.add(iconLabel, BorderLayout.WEST);
+        loadCollectionLogIcon(iconLabel);
+
+        JPanel textCol = new JPanel();
+        textCol.setLayout(new BoxLayout(textCol, BoxLayout.Y_AXIS));
+        textCol.setOpaque(false);
+
+        JLabel title = new JLabel("View allowed drops");
+        title.setFont(FontManager.getRunescapeBoldFont());
+        title.setForeground(TEXT_COLOR);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textCol.add(title);
+
+        viewAllowedDropsCountLabel = new JLabel(" ");
+        viewAllowedDropsCountLabel.setFont(FontManager.getRunescapeSmallFont());
+        viewAllowedDropsCountLabel.setForeground(MUTED_TEXT);
+        viewAllowedDropsCountLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textCol.add(viewAllowedDropsCountLabel);
+
+        viewAllowedDropsButton.add(textCol, BorderLayout.CENTER);
+
+        JLabel chevron = new JLabel("›");
+        chevron.setFont(FontManager.getRunescapeBoldFont().deriveFont(18f));
+        chevron.setForeground(ACCENT_COLOR);
+        viewAllowedDropsButton.add(chevron, BorderLayout.EAST);
+
+        viewAllowedDropsButton.addMouseListener(new MouseAdapter()
+        {
+            @Override
+            public void mouseEntered(MouseEvent e)
+            {
+                viewAllowedDropsButton.setBackground(HOVER_COLOR);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e)
+            {
+                viewAllowedDropsButton.setBackground(BACKGROUND_COLOR);
+            }
+        });
+
+        wrap.add(viewAllowedDropsButton, BorderLayout.CENTER);
+        return wrap;
+    }
+
+    private void loadCollectionLogIcon(JLabel iconLabel)
+    {
+        spriteManager.getSpriteAsync(
+            net.runelite.api.SpriteID.HISCORE_COLLECTIONS_LOGGED,
+            0,
+            sprite -> SwingUtilities.invokeLater(() ->
+            {
+                if (sprite == null || iconLabel == null)
+                {
+                    return;
+                }
+                BufferedImage scaled = ImageUtil.resizeImage(sprite, 24, 24);
+                iconLabel.setIcon(new ImageIcon(scaled));
+            }));
+    }
+
+    private void showAllowedDropsDialog()
+    {
+        List<SeasonalCatalogEntry> catalog = seasonalCatalogService.getCatalog();
+        JScrollPane scroll = SeasonalAllowedDropsView.build(catalog, spriteManager, itemManager);
+
+        JOptionPane.showMessageDialog(
+            this,
+            scroll,
+            "Allowed seasonal drops (" + catalog.size() + ")",
+            JOptionPane.PLAIN_MESSAGE
+        );
+    }
+
+    private JPanel createSeasonalTeamsSection()
+    {
+        JPanel section = new JPanel();
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setOpaque(false);
+        constrainSeasonalSection(section);
+
+        JLabel heading = new JLabel("Event teams");
+        heading.setFont(FontManager.getRunescapeBoldFont());
+        heading.setForeground(ACCENT_COLOR);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(heading);
+
+        JLabel hint = new JLabel("<html>Paste RSNs per team (comma or newline). "
+            + "Supports # / // comments. Click the clan icon to cycle colors. "
+            + "Icons show in chat, PMs, friends list, and clan list when Team icons is enabled.</html>");
+        hint.setFont(FontManager.getRunescapeSmallFont());
+        hint.setForeground(MUTED_TEXT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setBorder(new EmptyBorder(4, 0, 6, 0));
+        hint.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        section.add(hint);
+
+        JPanel countRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        countRow.setOpaque(false);
+        countRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel countLabel = new JLabel("Teams");
+        countLabel.setFont(FontManager.getRunescapeSmallFont());
+        countLabel.setForeground(TEXT_COLOR);
+        countRow.add(countLabel);
+
+        int count = Math.min(Math.max(config.teamCount(), 1), EventTeamService.MAX_TEAMS);
+        teamCountSpinner = new JSpinner(new SpinnerNumberModel(count, 1, EventTeamService.MAX_TEAMS, 1));
+        teamCountSpinner.setPreferredSize(new Dimension(56, 22));
+        teamCountSpinner.addChangeListener(e ->
+        {
+            int value = (Integer) teamCountSpinner.getValue();
+            configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "teamCount", value);
+            rebuildTeamsUi();
+        });
+        countRow.add(teamCountSpinner);
+        section.add(countRow);
+
+        JPanel syncRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        syncRow.setOpaque(false);
+        syncRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        syncRow.add(createPanelButton("Sync teams", "Fetch roster from GET /plugins/seasonal/teams", e ->
+        {
+            if (syncTeamsCallback != null)
+            {
+                syncTeamsCallback.run();
+            }
+        }));
+        section.add(syncRow);
+
+        teamsSyncLabel = new JLabel(" ");
+        teamsSyncLabel.setFont(FontManager.getRunescapeSmallFont());
+        teamsSyncLabel.setForeground(SECONDARY_TEXT);
+        teamsSyncLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        teamsSyncLabel.setBorder(new EmptyBorder(2, 0, 2, 0));
+        section.add(teamsSyncLabel);
+
+        teamsConflictLabel = new JLabel(" ");
+        teamsConflictLabel.setFont(FontManager.getRunescapeSmallFont());
+        teamsConflictLabel.setForeground(new Color(220, 120, 80));
+        teamsConflictLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        teamsConflictLabel.setBorder(new EmptyBorder(2, 0, 6, 0));
+        section.add(teamsConflictLabel);
+
+        teamsContainer = new JPanel();
+        teamsContainer.setLayout(new BoxLayout(teamsContainer, BoxLayout.Y_AXIS));
+        teamsContainer.setOpaque(false);
+        constrainSeasonalSection(teamsContainer);
+        section.add(teamsContainer);
+
+        return section;
+    }
+
+    private JPanel createSeasonalHistorySection()
+    {
+        JPanel section = new JPanel();
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setOpaque(false);
+        constrainSeasonalSection(section);
+
+        JLabel heading = new JLabel("Recent submits");
+        heading.setFont(FontManager.getRunescapeBoldFont());
+        heading.setForeground(ACCENT_COLOR);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(heading);
+
+        historyMetaLabel = new JLabel(" ");
+        historyMetaLabel.setFont(FontManager.getRunescapeSmallFont());
+        historyMetaLabel.setForeground(SECONDARY_TEXT);
+        historyMetaLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        historyMetaLabel.setBorder(new EmptyBorder(2, 0, 6, 0));
+        section.add(historyMetaLabel);
+
+        historyList = new JPanel();
+        historyList.setLayout(new BoxLayout(historyList, BoxLayout.Y_AXIS));
+        historyList.setBackground(PANEL_COLOR);
+        historyList.setBorder(new EmptyBorder(4, 6, 4, 6));
+        historyList.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JScrollPane historyScroll = new JScrollPane(historyList);
+        historyScroll.setBorder(BorderFactory.createEmptyBorder());
+        historyScroll.setBackground(PANEL_COLOR);
+        historyScroll.getViewport().setBackground(PANEL_COLOR);
+        historyScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        historyScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        historyScroll.setPreferredSize(new Dimension(CONTENT_WIDTH, 140));
+        historyScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+        section.add(historyScroll);
+
+        return section;
+    }
+
+    private JPanel createDebugTab()
+    {
+        JPanel tab = new JPanel();
+        tab.setLayout(new BoxLayout(tab, BoxLayout.Y_AXIS));
+        tab.setBackground(BACKGROUND_COLOR);
+        tab.setBorder(new EmptyBorder(8, SIDE_PAD, 8, SIDE_PAD));
+
+        JLabel heading = new JLabel("Debug");
+        heading.setFont(FontManager.getRunescapeBoldFont());
+        heading.setForeground(ACCENT_COLOR);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tab.add(heading);
+
+        JLabel hint = new JLabel("<html>Seasonal submit diagnostics and test tools. Not needed for normal play.</html>");
+        hint.setFont(FontManager.getRunescapeSmallFont());
+        hint.setForeground(MUTED_TEXT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setBorder(new EmptyBorder(4, 0, 8, 0));
+        tab.add(hint);
+
+        debugStatusLabel = new JLabel(" ");
+        debugStatusLabel.setFont(FontManager.getRunescapeSmallFont());
+        debugStatusLabel.setForeground(SECONDARY_TEXT);
+        debugStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        debugStatusLabel.setBorder(new EmptyBorder(0, 0, 8, 0));
+        tab.add(debugStatusLabel);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setOpaque(false);
+        buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
+        buttons.add(createPanelButton("Refresh catalog", "Reload allowed drops from the API", e ->
+        {
+            if (refreshCatalogCallback != null)
+            {
+                refreshCatalogCallback.run();
+            }
+        }));
+        buttons.add(createPanelButton("Test submit", "POST the first allowed drop to test the API", e ->
+        {
+            if (testSubmitCallback != null)
+            {
+                testSubmitCallback.run();
+            }
+        }));
+        tab.add(buttons);
+        tab.add(Box.createVerticalGlue());
+        return tab;
     }
 
     private JPanel createHeaderPanel()
@@ -98,14 +567,38 @@ public class EventListPanel extends PluginPanel
         JPanel headerWrapper = new JPanel();
         headerWrapper.setLayout(new BoxLayout(headerWrapper, BoxLayout.Y_AXIS));
         headerWrapper.setBackground(BACKGROUND_COLOR);
-        headerWrapper.setBorder(new EmptyBorder(8, 8, 8, 8));
+        headerWrapper.setBorder(new EmptyBorder(10, SIDE_PAD, 10, SIDE_PAD));
 
-        JPanel topRow = new JPanel(new BorderLayout());
+        JPanel topRow = new JPanel(new BorderLayout(8, 0));
         topRow.setBackground(BACKGROUND_COLOR);
-        JLabel titleLabel = new JLabel("Clan Events");
-        titleLabel.setFont(FontManager.getRunescapeBoldFont().deriveFont(16f));
+        topRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+        titleBlock.setOpaque(false);
+
+        JPanel titleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        titleRow.setOpaque(false);
+        titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        healthDot = new HealthDot();
+        titleRow.add(healthDot);
+
+        JLabel titleLabel = new JLabel("Ironforged");
+        titleLabel.setFont(FontManager.getRunescapeBoldFont().deriveFont(20f));
         titleLabel.setForeground(ACCENT_COLOR);
-        topRow.add(titleLabel, BorderLayout.WEST);
+        titleRow.add(titleLabel);
+
+        titleBlock.add(titleRow);
+
+        JLabel subtitleLabel = new JLabel("Clan Events");
+        subtitleLabel.setFont(FontManager.getRunescapeBoldFont().deriveFont(13f));
+        subtitleLabel.setForeground(TEXT_COLOR);
+        subtitleLabel.setBorder(new EmptyBorder(2, 18, 0, 0));
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleBlock.add(subtitleLabel);
+
+        topRow.add(titleBlock, BorderLayout.WEST);
 
         JButton refreshButton = new JButton("↻");
         refreshButton.setFont(FontManager.getRunescapeBoldFont().deriveFont(14f));
@@ -114,8 +607,9 @@ public class EventListPanel extends PluginPanel
         refreshButton.setBorder(new EmptyBorder(5, 10, 5, 10));
         refreshButton.setFocusPainted(false);
         refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        refreshButton.setToolTipText("Refresh events from Google Sheet");
-        refreshButton.addActionListener(e -> {
+        refreshButton.setToolTipText("Refresh events from Iron Forged API");
+        refreshButton.addActionListener(e ->
+        {
             if (refreshCallback != null)
             {
                 refreshCallback.run();
@@ -137,197 +631,611 @@ public class EventListPanel extends PluginPanel
         });
         topRow.add(refreshButton, BorderLayout.EAST);
 
-        JPanel tabsRow = new JPanel(new GridLayout(1, 2, 6, 0));
-        tabsRow.setBackground(BACKGROUND_COLOR);
-        tabsRow.setBorder(new EmptyBorder(6, 0, 0, 0));
-
-        eventsTabButton = createTabButton("Events", true, () -> setActiveTab("events"));
-        seasonalTabButton = createTabButton("Seasonal", false, () -> setActiveTab("seasonal"));
-        tabsRow.add(eventsTabButton);
-        tabsRow.add(seasonalTabButton);
-
         headerWrapper.add(topRow);
-        headerWrapper.add(tabsRow);
         return headerWrapper;
     }
 
-    private JPanel createContentPanel()
+    private JButton createPanelButton(String label, String tooltip, java.awt.event.ActionListener action)
     {
-        contentLayout = new CardLayout();
-        contentPanel = new JPanel(contentLayout);
-        contentPanel.setBackground(BACKGROUND_COLOR);
-        contentPanel.add(createEventsScrollPane(), "events");
-        contentPanel.add(createSeasonalPanel(), "seasonal");
-        contentLayout.show(contentPanel, "events");
-        return contentPanel;
+        JButton button = new JButton(label);
+        button.setFont(FontManager.getRunescapeSmallFont());
+        button.setForeground(TEXT_COLOR);
+        button.setBackground(BACKGROUND_COLOR);
+        button.setBorder(new EmptyBorder(4, 8, 4, 8));
+        button.setFocusPainted(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setToolTipText(tooltip);
+        button.addActionListener(action);
+        button.addMouseListener(new MouseAdapter()
+        {
+            @Override
+            public void mouseEntered(MouseEvent e)
+            {
+                button.setBackground(HOVER_COLOR);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e)
+            {
+                button.setBackground(BACKGROUND_COLOR);
+            }
+        });
+        return button;
+    }
+
+    /**
+     * Refresh the Seasonal / Debug tabs (user status, diagnostics, submit history).
+     */
+    public void updateSeasonalSection()
+    {
+        SwingUtilities.invokeLater(() ->
+        {
+            if (seasonalStatusLabel == null)
+            {
+                return;
+            }
+
+            boolean enabled = config.enableSeasonalSubmit();
+            if (!enabled)
+            {
+                seasonalStatusLabel.setText("<html>Submit is off. Enable it in plugin config (opt-in).</html>");
+            }
+            else
+            {
+                String eventName = seasonalCatalogService.getEventName();
+                String eventId = seasonalCatalogService.resolveEventId(config);
+                int count = seasonalCatalogService.catalogSize();
+                int queued = seasonalDropSubmitService.getQueueSize();
+
+                StringBuilder meta = new StringBuilder("<html>");
+                if (!seasonalCatalogService.hasActiveEvent()
+                    && seasonalCatalogService.getEventId().isEmpty()
+                    && eventId.isEmpty())
+                {
+                    meta.append("No active seasonal event");
+                }
+                else
+                {
+                    meta.append(escapeHtml(eventName.isEmpty() ? "Seasonal event" : eventName));
+                    if (seasonalCatalogService.isEventEnded())
+                    {
+                        meta.append(" (ended)");
+                    }
+                    meta.append("<br>").append(count).append(" allowed drop");
+                    if (count != 1)
+                    {
+                        meta.append("s");
+                    }
+                }
+                if (queued > 0)
+                {
+                    meta.append("<br>").append(queued).append(" queued for retry");
+                }
+                meta.append("</html>");
+                seasonalStatusLabel.setText(meta.toString());
+            }
+
+            refreshAllowedDropsButton();
+            updateDebugStatus();
+            updateHistoryList();
+        });
+    }
+
+    private void refreshAllowedDropsButton()
+    {
+        if (viewAllowedDropsCountLabel == null)
+        {
+            return;
+        }
+        int count = seasonalCatalogService.catalogSize();
+        if (count <= 0)
+        {
+            viewAllowedDropsCountLabel.setText("No catalog loaded yet");
+        }
+        else
+        {
+            viewAllowedDropsCountLabel.setText(count + " boss / item pair" + (count == 1 ? "" : "s"));
+        }
+        if (viewAllowedDropsButton != null)
+        {
+            viewAllowedDropsButton.setToolTipText(
+                count > 0
+                    ? "Open allowlist (" + count + " drops)"
+                    : "Open allowlist");
+        }
+    }
+
+    private void updateDebugStatus()
+    {
+        if (debugStatusLabel == null)
+        {
+            return;
+        }
+
+        String eventName = seasonalCatalogService.getEventName();
+        String eventId = seasonalCatalogService.resolveEventId(config);
+        String eventPassphrase = seasonalCatalogService.resolveEventPassphrase(config);
+        int catalog = seasonalCatalogService.catalogSize();
+        String err = seasonalCatalogService.getLastError();
+        String status = seasonalDropSubmitService.getLastStatus();
+        int queued = seasonalDropSubmitService.getQueueSize();
+
+        StringBuilder meta = new StringBuilder("<html>");
+        meta.append(config.useDevApi() ? "API: dev" : "API: prod");
+        meta.append(" · ").append(config.enableSeasonalSubmit() ? "Submit: on" : "Submit: off");
+        if (config.seasonalSubmitDryRun())
+        {
+            meta.append(" · dry run");
+        }
+        meta.append("<br>");
+        if (!eventName.isEmpty())
+        {
+            meta.append(escapeHtml(eventName));
+            if (seasonalCatalogService.isEventEnded())
+            {
+                meta.append(" (ended)");
+            }
+            meta.append("<br>");
+        }
+        meta.append("Catalog: ").append(catalog).append(" · Queue: ").append(queued);
+        if (!eventId.isEmpty())
+        {
+            meta.append("<br>Seasonal Event ID: ").append(escapeHtml(eventId));
+        }
+        else
+        {
+            meta.append("<br>Seasonal Event ID: <i>not set</i>");
+        }
+        if (!eventPassphrase.isEmpty())
+        {
+            meta.append("<br>Seasonal Event Passphrase: ").append(escapeHtml(eventPassphrase));
+        }
+        else
+        {
+            meta.append("<br>Seasonal Event Passphrase: <i>not set</i>");
+        }
+        if (err != null && !err.isEmpty())
+        {
+            meta.append("<br>Catalog error: ").append(escapeHtml(err));
+        }
+        if (status != null && !status.isEmpty())
+        {
+            meta.append("<br>").append(escapeHtml(status));
+        }
+        meta.append("</html>");
+        debugStatusLabel.setText(meta.toString());
+    }
+
+    public void refreshTeamsOnlineCounts()
+    {
+        if (eventTeamService == null)
+        {
+            return;
+        }
+        eventTeamService.computeOnlineCounts(onlineByTeam ->
+        {
+            int teamCount = Math.min(Math.max(config.teamCount(), 1), EventTeamService.MAX_TEAMS);
+            for (int team = 1; team <= teamCount; team++)
+            {
+                updateTeamLabel(team, onlineByTeam.getOrDefault(team, 0));
+            }
+            List<String> conflicts = eventTeamService.getConflicts();
+            if (teamsConflictLabel != null)
+            {
+                if (conflicts.isEmpty())
+                {
+                    teamsConflictLabel.setText(" ");
+                }
+                else
+                {
+                    teamsConflictLabel.setText("<html>" + conflicts.size() + " duplicate name(s): "
+                        + escapeHtml(String.join("; ", conflicts.subList(0, Math.min(3, conflicts.size()))))
+                        + (conflicts.size() > 3 ? "…" : "")
+                        + "</html>");
+                }
+            }
+        });
+    }
+
+    public void rebuildTeamsUi()
+    {
+        SwingUtilities.invokeLater(() ->
+        {
+            if (teamsContainer == null)
+            {
+                return;
+            }
+            teamsContainer.removeAll();
+            teamLabels.clear();
+            teamAreas.clear();
+
+            int teamCount = Math.min(Math.max(config.teamCount(), 1), EventTeamService.MAX_TEAMS);
+            if (teamCountSpinner != null && !Objects.equals(teamCountSpinner.getValue(), teamCount))
+            {
+                teamCountSpinner.setValue(teamCount);
+            }
+
+            for (int team = 1; team <= teamCount; team++)
+            {
+                teamsContainer.add(createTeamSection(team));
+                teamsContainer.add(Box.createVerticalStrut(8));
+            }
+            teamsContainer.revalidate();
+            teamsContainer.repaint();
+            updateTeamsSyncLabel();
+            refreshTeamsOnlineCounts();
+        });
+    }
+
+    public void updateTeamsSyncLabel()
+    {
+        if (teamsSyncLabel == null || eventTeamSyncService == null)
+        {
+            return;
+        }
+        String status = eventTeamSyncService.getLastStatus();
+        String err = eventTeamSyncService.getLastError();
+        if (!config.enableTeamRosterSync())
+        {
+            teamsSyncLabel.setText("API sync off — enable in plugin config");
+        }
+        else if (err != null && !err.isEmpty())
+        {
+            teamsSyncLabel.setText(status);
+        }
+        else
+        {
+            teamsSyncLabel.setText(status == null ? " " : status);
+        }
+    }
+
+    private JPanel createTeamSection(int team)
+    {
+        JPanel section = new JPanel(new BorderLayout(0, 4));
+        section.setOpaque(false);
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+
+        JPanel header = new JPanel(new BorderLayout(6, 0));
+        header.setOpaque(false);
+        JLabel label = new JLabel();
+        label.setFont(FontManager.getRunescapeBoldFont());
+        label.setForeground(TEXT_COLOR);
+        header.add(label, BorderLayout.CENTER);
+        header.add(createTeamColorButton(team), BorderLayout.EAST);
+        section.add(header, BorderLayout.NORTH);
+
+        JTextArea namesArea = new JTextArea(4, 20);
+        namesArea.setLineWrap(true);
+        namesArea.setWrapStyleWord(true);
+        namesArea.setFont(FontManager.getRunescapeSmallFont());
+        namesArea.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        namesArea.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        namesArea.setCaretColor(ColorScheme.LIGHT_GRAY_COLOR);
+        namesArea.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
+            new EmptyBorder(4, 4, 4, 4)));
+
+        String saved = configManager.getConfiguration(EventListConfig.CONFIG_GROUP, EventTeamService.teamNamesKey(team));
+        if (saved != null)
+        {
+            namesArea.setText(saved);
+        }
+
+        teamLabels.put(team, label);
+        teamAreas.put(team, namesArea);
+        updateTeamLabel(team, 0);
+
+        Timer saveTimer = new Timer(500, e ->
+            configManager.setConfiguration(
+                EventListConfig.CONFIG_GROUP,
+                EventTeamService.teamNamesKey(team),
+                namesArea.getText()));
+        saveTimer.setRepeats(false);
+
+        namesArea.getDocument().addDocumentListener(new DocumentListener()
+        {
+            @Override
+            public void insertUpdate(DocumentEvent e)
+            {
+                changed();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e)
+            {
+                changed();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e)
+            {
+                changed();
+            }
+
+            private void changed()
+            {
+                updateTeamLabel(team, 0);
+                saveTimer.restart();
+            }
+        });
+
+        section.add(namesArea, BorderLayout.CENTER);
+        return section;
+    }
+
+    private void updateTeamLabel(int team, int online)
+    {
+        JLabel label = teamLabels.get(team);
+        JTextArea namesArea = teamAreas.get(team);
+        if (label == null || namesArea == null)
+        {
+            return;
+        }
+        int total = EventTeamService.splitNames(namesArea.getText()).size();
+        int shownOnline = Math.min(online, total);
+        String labelName = configManager.getConfiguration(
+            EventListConfig.CONFIG_GROUP, EventTeamService.teamLabelKey(team));
+        String title = (labelName == null || labelName.trim().isEmpty())
+            ? ("Team " + team)
+            : labelName.trim();
+        label.setText(title + " — " + shownOnline + "/" + total + " online");
+    }
+
+    private JButton createTeamColorButton(int team)
+    {
+        JButton colorButton = new JButton();
+        colorButton.setPreferredSize(new Dimension(22, 22));
+        colorButton.setContentAreaFilled(false);
+        colorButton.setOpaque(false);
+        colorButton.setBorderPainted(true);
+        colorButton.setRolloverEnabled(false);
+        colorButton.setFocusable(false);
+        colorButton.setBorder(BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR));
+        applyTeamColorButton(colorButton, eventTeamService.teamPalette(team));
+        colorButton.addActionListener(e ->
+        {
+            eventTeamService.cycleTeamPalette(team);
+            applyTeamColorButton(colorButton, eventTeamService.teamPalette(team));
+        });
+        return colorButton;
+    }
+
+    private void applyTeamColorButton(JButton colorButton, EventTeamIconFactory.TeamPalette palette)
+    {
+        BufferedImage badge = eventTeamService.paletteBadge(palette);
+        if (badge != null)
+        {
+            colorButton.setIcon(new ImageIcon(badge));
+        }
+        // Neutral chrome — never paint the team hue behind the icon (red-on-red / gold-on-gold).
+        colorButton.setBackground(PANEL_COLOR);
+        colorButton.setToolTipText(palette.getLabel());
+    }
+
+    private void updateHistoryList()
+    {
+        if (historyList == null || historyMetaLabel == null)
+        {
+            return;
+        }
+
+        List<SeasonalDropRecord> history = seasonalDropSubmitService.getHistory();
+        historyMetaLabel.setText(history.isEmpty()
+            ? "No submits for this profile yet"
+            : history.size() + " submit" + (history.size() == 1 ? "" : "s"));
+
+        historyList.removeAll();
+        if (history.isEmpty())
+        {
+            JLabel empty = new JLabel("Eligible drops you submit appear here.");
+            empty.setFont(FontManager.getRunescapeSmallFont());
+            empty.setForeground(MUTED_TEXT);
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            historyList.add(empty);
+        }
+        else
+        {
+            SimpleDateFormat fmt = new SimpleDateFormat("MMM d HH:mm");
+            int shown = Math.min(history.size(), 25);
+            for (int i = 0; i < shown; i++)
+            {
+                SeasonalDropRecord record = history.get(i);
+                long whenMs = record.savedAtEpochMs > 0 ? record.savedAtEpochMs : 0L;
+                String when = whenMs > 0 ? fmt.format(new Date(whenMs)) : record.date;
+                String item = record.itemName == null || record.itemName.isEmpty()
+                    ? "#" + record.itemId
+                    : record.itemName;
+                String status = record.status == null ? "" : record.status;
+                boolean ok = "submitted".equalsIgnoreCase(status) || "accepted".equalsIgnoreCase(status);
+
+                JPanel card = new JPanel(new BorderLayout(4, 0));
+                card.setBackground(BACKGROUND_COLOR);
+                card.setBorder(new EmptyBorder(4, 4, 4, 4));
+                card.setAlignmentX(Component.LEFT_ALIGNMENT);
+                card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+
+                JLabel primary = new JLabel("<html>" + escapeHtml(item) + "</html>");
+                primary.setFont(FontManager.getRunescapeSmallFont());
+                primary.setForeground(ok ? ACCENT_COLOR : TEXT_COLOR);
+                card.add(primary, BorderLayout.NORTH);
+
+                JLabel secondary = new JLabel(when + " · " + record.boss + " · " + status);
+                secondary.setFont(FontManager.getRunescapeSmallFont());
+                secondary.setForeground(MUTED_TEXT);
+                card.add(secondary, BorderLayout.SOUTH);
+
+                String tip = "ID: " + (record.id == null || record.id.isEmpty() ? "(none)" : record.id);
+                if (record.detail != null && !record.detail.isEmpty())
+                {
+                    tip += " — " + record.detail;
+                }
+                card.setToolTipText(tip);
+                historyList.add(card);
+                historyList.add(Box.createVerticalStrut(3));
+            }
+        }
+        historyList.revalidate();
+        historyList.repaint();
+    }
+
+    private void refreshHealthDot()
+    {
+        if (healthDot == null)
+        {
+            return;
+        }
+        ApiStatus status = eventsApiService.getApiStatus();
+        healthDot.setStatus(status);
     }
 
     private JScrollPane createEventsScrollPane()
     {
-        eventsContainer = new JPanel();
+        // Track viewport width so rows fill the panel on first layout (not only after a click rebuild).
+        eventsContainer = new JPanel()
+        {
+            @Override
+            public Dimension getPreferredSize()
+            {
+                Dimension pref = super.getPreferredSize();
+                return new Dimension(viewportWidth(), pref.height);
+            }
+
+            @Override
+            public Dimension getMinimumSize()
+            {
+                return new Dimension(viewportWidth(), super.getMinimumSize().height);
+            }
+
+            @Override
+            public Dimension getMaximumSize()
+            {
+                return new Dimension(Short.MAX_VALUE, Integer.MAX_VALUE);
+            }
+
+            @Override
+            public boolean isOptimizedDrawingEnabled()
+            {
+                return true;
+            }
+        };
         eventsContainer.setLayout(new BoxLayout(eventsContainer, BoxLayout.Y_AXIS));
         eventsContainer.setBackground(BACKGROUND_COLOR);
-        eventsContainer.setBorder(new EmptyBorder(0, 8, 0, 8));
+        eventsContainer.setBorder(new EmptyBorder(0, SIDE_PAD, 0, SIDE_PAD));
+        eventsContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JScrollPane scrollPane = new JScrollPane(eventsContainer);
-        scrollPane.setBackground(BACKGROUND_COLOR);
-        scrollPane.getViewport().setBackground(BACKGROUND_COLOR);
-        scrollPane.setBorder(null);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-
-        return scrollPane;
+        // Force the view to always match viewport width (avoids centered narrow first paint).
+        eventsScrollPane = new JScrollPane(new ScrollableWidthPanel(eventsContainer));
+        eventsScrollPane.setBackground(BACKGROUND_COLOR);
+        eventsScrollPane.getViewport().setBackground(BACKGROUND_COLOR);
+        eventsScrollPane.setBorder(null);
+        eventsScrollPane.setViewportBorder(null);
+        eventsScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        eventsScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        eventsScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        eventsScrollPane.addComponentListener(new ComponentAdapter()
+        {
+            @Override
+            public void componentResized(ComponentEvent e)
+            {
+                maybeRelayoutForViewportWidth();
+            }
+        });
+        eventsScrollPane.getViewport().addChangeListener(e -> maybeRelayoutForViewportWidth());
+        return eventsScrollPane;
     }
 
-    private JPanel createSeasonalPanel()
+    private void maybeRelayoutForViewportWidth()
     {
-        JPanel seasonalPanel = new JPanel();
-        seasonalPanel.setLayout(new BoxLayout(seasonalPanel, BoxLayout.Y_AXIS));
-        seasonalPanel.setBackground(BACKGROUND_COLOR);
-        seasonalPanel.setBorder(new EmptyBorder(2, 8, 2, 8));
+        int w = eventsScrollPane != null ? eventsScrollPane.getViewport().getWidth() : 0;
+        if (w <= 0 || w == laidOutViewportWidth)
+        {
+            return;
+        }
+        // Rebuild once the viewport has a real width (first show / resize).
+        updateEvents();
+    }
 
-        seasonalLinkLabel = createSeasonalValueLabel("Not configured");
-        seasonalCountsLabel = createSeasonalValueLabel("Queue: 0 pending | 0 sent | 0 failed");
-        seasonalManifestLabel = createSeasonalValueLabel("Manifest: not loaded");
-        seasonalApiLabel = createSeasonalValueLabel("API: no request yet");
-        seasonalErrorLabel = createSeasonalValueLabel("Error: none");
+    private int viewportWidth()
+    {
+        if (eventsScrollPane != null)
+        {
+            int w = eventsScrollPane.getViewport().getWidth();
+            if (w > 0)
+            {
+                return w;
+            }
+        }
+        // Prefer full panel width before scrollbar appears; scrollbar is accounted for after layout.
+        return Math.max(1, PluginPanel.PANEL_WIDTH);
+    }
 
-        JLabel quickGuide = new JLabel("<html><body style='width:170px;color:#d0d0d0'>"
-            + "Quick setup: enable reporter, set endpoint/event/passphrase, paste Allowed Drops JSON, "
-            + "then click Reload Manifest and Queue Test Drop."
-            + "</body></html>");
-        quickGuide.setFont(FontManager.getRunescapeSmallFont());
-        quickGuide.setAlignmentX(Component.LEFT_ALIGNMENT);
-        quickGuide.setBorder(new EmptyBorder(0, 0, 8, 0));
-        seasonalPanel.add(quickGuide);
+    /** Usable row width inside side padding. */
+    private int contentWidth()
+    {
+        return Math.max(1, viewportWidth() - (SIDE_PAD * 2));
+    }
 
-        seasonalPanel.add(createInfoRow("Config", seasonalLinkLabel));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createInfoRow("Queue", seasonalCountsLabel));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createInfoRow("Manifest", seasonalManifestLabel));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createInfoRow("API", seasonalApiLabel));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createInfoRow("Error", seasonalErrorLabel));
-        seasonalPanel.add(Box.createVerticalStrut(10));
+    /**
+     * Viewport view that always tracks viewport width so children stretch on first paint.
+     */
+    private static final class ScrollableWidthPanel extends JPanel implements Scrollable
+    {
+        private ScrollableWidthPanel(JComponent content)
+        {
+            setLayout(new BorderLayout());
+            setBackground(BACKGROUND_COLOR);
+            add(content, BorderLayout.NORTH);
+        }
 
-        seasonalPanel.add(createActionButton("Validate Config", seasonalLinkCallback));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Ping API", seasonalTestCallback));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Send Queued Drops", seasonalFlushCallback));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Clear Queue", seasonalClearQueueCallback));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Reload Manifest JSON", seasonalManifestRefreshCallback));
-        seasonalPanel.add(Box.createVerticalStrut(4));
-        seasonalPanel.add(createActionButton("Queue Test Drop", seasonalDebugDropCallback));
+        @Override
+        public Dimension getPreferredScrollableViewportSize()
+        {
+            return getPreferredSize();
+        }
 
-        JLabel trustNote = new JLabel("<html><body style='width:170px;color:#b0b0b0'>"
-            + "Queue Test Drop only adds to local queue. Use Send Queued Drops to post to API. "
-            + "Manifest accepts either boss->item arrays or generated boss list JSON."
-            + "</body></html>");
-        trustNote.setFont(FontManager.getRunescapeSmallFont());
-        trustNote.setAlignmentX(Component.LEFT_ALIGNMENT);
-        trustNote.setBorder(new EmptyBorder(10, 0, 0, 0));
-        seasonalPanel.add(trustNote);
-        seasonalPanel.add(Box.createVerticalGlue());
-        return seasonalPanel;
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction)
+        {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction)
+        {
+            return Math.max(16, visibleRect.height - 16);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight()
+        {
+            return false;
+        }
     }
 
     private JPanel createFooterPanel()
     {
-        JPanel footerPanel = new JPanel();
-        footerPanel.setLayout(new BoxLayout(footerPanel, BoxLayout.Y_AXIS));
+        JPanel footerPanel = new JPanel(new BorderLayout());
         footerPanel.setBackground(BACKGROUND_COLOR);
-        footerPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
-
-        JPanel topRow = new JPanel(new BorderLayout());
-        topRow.setBackground(BACKGROUND_COLOR);
+        footerPanel.setBorder(new EmptyBorder(8, SIDE_PAD, 8, SIDE_PAD));
 
         statusLabel = new JLabel("Loading...");
         statusLabel.setFont(FontManager.getRunescapeSmallFont());
         statusLabel.setForeground(SECONDARY_TEXT);
-        topRow.add(statusLabel, BorderLayout.WEST);
+        footerPanel.add(statusLabel, BorderLayout.WEST);
 
         lastUpdateLabel = new JLabel("");
         lastUpdateLabel.setFont(FontManager.getRunescapeSmallFont());
         lastUpdateLabel.setForeground(SECONDARY_TEXT);
-        topRow.add(lastUpdateLabel, BorderLayout.EAST);
-
-        seasonalStatusLabel = new JLabel("Seasonal: disabled");
-        seasonalStatusLabel.setFont(FontManager.getRunescapeSmallFont());
-        seasonalStatusLabel.setForeground(SECONDARY_TEXT);
-
-        footerPanel.add(topRow);
-        footerPanel.add(Box.createVerticalStrut(3));
-        footerPanel.add(seasonalStatusLabel);
+        footerPanel.add(lastUpdateLabel, BorderLayout.EAST);
 
         return footerPanel;
-    }
-
-    private JButton createTabButton(String label, boolean active, Runnable onClick)
-    {
-        JButton button = new JButton(label);
-        button.setFont(FontManager.getRunescapeSmallFont());
-        button.setForeground(TEXT_COLOR);
-        button.setBackground(active ? HOVER_COLOR : PANEL_COLOR);
-        button.setBorder(new EmptyBorder(4, 8, 4, 8));
-        button.setFocusPainted(false);
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.addActionListener(e -> onClick.run());
-        return button;
-    }
-
-    private void setActiveTab(String tabKey)
-    {
-        contentLayout.show(contentPanel, tabKey);
-        boolean eventsActive = "events".equals(tabKey);
-        eventsTabButton.setBackground(eventsActive ? HOVER_COLOR : PANEL_COLOR);
-        seasonalTabButton.setBackground(eventsActive ? PANEL_COLOR : HOVER_COLOR);
-    }
-
-    private JPanel createInfoRow(String label, JLabel valueLabel)
-    {
-        JPanel row = new JPanel(new BorderLayout(8, 0));
-        row.setBackground(BACKGROUND_COLOR);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel key = new JLabel(label + ":");
-        key.setFont(FontManager.getRunescapeSmallFont());
-        key.setForeground(SECONDARY_TEXT);
-        row.add(key, BorderLayout.WEST);
-        row.add(valueLabel, BorderLayout.CENTER);
-        return row;
-    }
-
-    private JLabel createSeasonalValueLabel(String text)
-    {
-        JLabel label = new JLabel(text);
-        label.setFont(FontManager.getRunescapeSmallFont());
-        label.setForeground(TEXT_COLOR);
-        return label;
-    }
-
-    private JButton createActionButton(String label, Runnable action)
-    {
-        JButton button = new JButton(label);
-        button.setAlignmentX(Component.LEFT_ALIGNMENT);
-        button.setFont(FontManager.getRunescapeSmallFont());
-        button.setForeground(TEXT_COLOR);
-        button.setBackground(PANEL_COLOR);
-        button.setBorder(new EmptyBorder(5, 8, 5, 8));
-        button.setFocusPainted(false);
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.addActionListener(e ->
-        {
-            if (action != null)
-            {
-                action.run();
-            }
-        });
-        return button;
     }
 
     /**
@@ -335,21 +1243,26 @@ public class EventListPanel extends PluginPanel
      */
     public void updateEvents()
     {
-        SwingUtilities.invokeLater(() -> {
+        SwingUtilities.invokeLater(() ->
+        {
+            updateSeasonalSection();
+
+            // Lock current viewport width so resize listener does not loop.
+            laidOutViewportWidth = viewportWidth();
+
             eventsContainer.removeAll();
 
             List<ClanEvent> events;
             if (config.showPastEvents())
             {
-                events = sheetService.getCachedEvents();
+                events = eventsApiService.getCachedEvents();
             }
             else
             {
-                events = sheetService.getUpcomingEvents();
+                events = eventsApiService.getUpcomingEvents();
             }
 
             int maxEvents = config.maxEventsInPanel();
-            int displayCount = Math.min(events.size(), maxEvents);
 
             if (events.isEmpty())
             {
@@ -360,9 +1273,10 @@ public class EventListPanel extends PluginPanel
                 noEventsLabel.setBorder(new EmptyBorder(20, 0, 10, 0));
                 eventsContainer.add(noEventsLabel);
 
-                if (config.sheetId().isEmpty())
+                if (!config.enableEventsFeed())
                 {
-                    JLabel configLabel = new JLabel("<html><center>Configure your Google Sheet ID<br>in the plugin settings</center></html>");
+                    JLabel configLabel = new JLabel(
+                        "<html><center>Enable <b>Load clan events</b><br>in the plugin settings</center></html>");
                     configLabel.setFont(FontManager.getRunescapeSmallFont());
                     configLabel.setForeground(SECONDARY_TEXT);
                     configLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -371,299 +1285,630 @@ public class EventListPanel extends PluginPanel
             }
             else
             {
-                // Get the highlighted event (active or next upcoming)
-                ClanEvent highlightedEvent = sheetService.getHighlightedEvent();
-                ClanEvent activeEvent = sheetService.getActiveEvent();
-                
-                // Show active event section at the top if there's one happening
-                if (activeEvent != null)
+                ClanEvent activeEvent = eventsApiService.getActiveEvent();
+                ClanEvent highlightedEvent = eventsApiService.getHighlightedEvent();
+                LocalDate today = LocalDate.now();
+
+                List<ClanEvent> weekly = new ArrayList<>();
+                Map<LocalDate, List<ClanEvent>> byDay = new LinkedHashMap<>();
+                int listed = 0;
+
+                // Ensure today's block exists first when a live non-weekly event is active
+                if (activeEvent != null
+                    && activeEvent.getLocalDate() != null
+                    && !activeEvent.isWeeklySpotlight())
                 {
-                    // Active event header
-                    JLabel activeHeader = new JLabel("● ACTIVE EVENT");
-                    activeHeader.setFont(FontManager.getRunescapeBoldFont());
-                    activeHeader.setForeground(HAPPENING_COLOR);
-                    activeHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
-                    eventsContainer.add(activeHeader);
-                    eventsContainer.add(Box.createVerticalStrut(4));
-                    
-                    eventsContainer.add(createEventPanel(activeEvent, true));
-                    eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
-                    
-                    // Separator
-                    JSeparator separator = new JSeparator();
-                    separator.setForeground(SECONDARY_TEXT);
-                    separator.setMaximumSize(new Dimension(CONTENT_WIDTH, 2));
-                    separator.setAlignmentX(Component.LEFT_ALIGNMENT);
-                    eventsContainer.add(separator);
-                    eventsContainer.add(Box.createVerticalStrut(8));
-                    
-                    // Upcoming events header
-                    JLabel upcomingHeader = new JLabel("UPCOMING");
-                    upcomingHeader.setFont(FontManager.getRunescapeBoldFont());
-                    upcomingHeader.setForeground(ACCENT_COLOR);
-                    upcomingHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
-                    eventsContainer.add(upcomingHeader);
-                    eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
+                    byDay.computeIfAbsent(activeEvent.getLocalDate(), d -> new ArrayList<>());
+                    byDay.get(activeEvent.getLocalDate()).add(activeEvent);
                 }
-                
-                for (int i = 0; i < displayCount; i++)
+                else if (activeEvent != null && activeEvent.isWeeklySpotlight())
                 {
-                    ClanEvent event = events.get(i);
-                    
-                    // Skip active event in the main list since it's shown at top
+                    weekly.add(activeEvent);
+                }
+
+                for (ClanEvent event : events)
+                {
                     if (activeEvent != null && event.equals(activeEvent))
                     {
                         continue;
                     }
-                    
-                    // Highlight if this is the next upcoming event (not active, since active is shown separately)
-                    boolean isHighlighted = activeEvent == null && highlightedEvent != null && event.equals(highlightedEvent);
-                    eventsContainer.add(createEventPanel(event, isHighlighted));
-                    
-                    // Add spacing between events (not after the last one)
-                    if (i < displayCount - 1)
+
+                    LocalDate day = event.getLocalDate();
+                    if (day == null)
                     {
-                        eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
+                        continue;
+                    }
+
+                    boolean pastDay = day.isBefore(today);
+                    if (pastDay && !config.showPastEvents() && !event.isWeeklySpotlight())
+                    {
+                        continue;
+                    }
+                    if (event.isWeeklySpotlight() && event.isPast() && !config.showPastEvents())
+                    {
+                        continue;
+                    }
+
+                    if (listed >= maxEvents)
+                    {
+                        break;
+                    }
+                    listed++;
+
+                    if (event.isWeeklySpotlight())
+                    {
+                        weekly.add(event);
+                    }
+                    else
+                    {
+                        byDay.computeIfAbsent(day, d -> new ArrayList<>()).add(event);
+                    }
+                }
+
+                Collections.sort(weekly);
+
+                boolean firstRow = true;
+                if (!weekly.isEmpty())
+                {
+                    boolean weeklyPast = weekly.stream().allMatch(ClanEvent::isPast);
+                    eventsContainer.add(createTimelineDayMarker(
+                        "WEEKLY · SOTW / BOTW",
+                        weeklyPast,
+                        false,
+                        !byDay.isEmpty() || !weekly.isEmpty()));
+                    firstRow = false;
+
+                    for (int i = 0; i < weekly.size(); i++)
+                    {
+                        ClanEvent event = weekly.get(i);
+                        boolean isLive = activeEvent != null && event.equals(activeEvent);
+                        boolean isNext = !isLive
+                            && activeEvent == null
+                            && highlightedEvent != null
+                            && event.equals(highlightedEvent);
+                        boolean past = event.isPast();
+                        boolean lastOverall = byDay.isEmpty() && i == weekly.size() - 1;
+                        int toneVariant = toneVariantInList(weekly, i);
+                        eventsContainer.add(createTimelineEventRow(
+                            event, isLive, isNext, past, toneVariant, true, !lastOverall));
+                        if (!lastOverall)
+                        {
+                            eventsContainer.add(Box.createVerticalStrut(2));
+                        }
+                    }
+                }
+
+                List<LocalDate> sortedDays = new ArrayList<>(byDay.keySet());
+                Collections.sort(sortedDays);
+
+                for (int dayIndex = 0; dayIndex < sortedDays.size(); dayIndex++)
+                {
+                    LocalDate day = sortedDays.get(dayIndex);
+                    List<ClanEvent> dayEvents = byDay.get(day);
+                    boolean pastDay = day.isBefore(today);
+                    boolean lastDay = dayIndex == sortedDays.size() - 1;
+
+                    eventsContainer.add(createTimelineDayMarker(
+                        dayEvents.get(0).getDayBlockHeader(),
+                        pastDay,
+                        !firstRow,
+                        !dayEvents.isEmpty() || !lastDay));
+                    firstRow = false;
+
+                    for (int i = 0; i < dayEvents.size(); i++)
+                    {
+                        ClanEvent event = dayEvents.get(i);
+                        boolean isLive = activeEvent != null && event.equals(activeEvent);
+                        boolean isNext = !isLive
+                            && activeEvent == null
+                            && highlightedEvent != null
+                            && event.equals(highlightedEvent);
+                        boolean lastEvent = lastDay && i == dayEvents.size() - 1;
+                        int toneVariant = toneVariantInList(dayEvents, i);
+                        eventsContainer.add(createTimelineEventRow(
+                            event, isLive, isNext, pastDay, toneVariant, true, !lastEvent));
+                        if (!lastEvent)
+                        {
+                            eventsContainer.add(Box.createVerticalStrut(2));
+                        }
                     }
                 }
 
                 if (events.size() > maxEvents)
                 {
-                    eventsContainer.add(Box.createVerticalStrut(EVENT_SPACING));
-                    
-                    JLabel moreLabel = new JLabel("+" + (events.size() - maxEvents) + " more events");
+                    JLabel moreLabel = new JLabel("+" + (events.size() - maxEvents) + " more");
                     moreLabel.setFont(FontManager.getRunescapeSmallFont());
                     moreLabel.setForeground(SECONDARY_TEXT);
-                    moreLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    moreLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    moreLabel.setBorder(new EmptyBorder(6, RAIL_WIDTH + 4, 0, 0));
                     eventsContainer.add(moreLabel);
                 }
             }
 
-            // Add vertical glue to push content to top
             eventsContainer.add(Box.createVerticalGlue());
 
-            // Update status
             statusLabel.setText(events.size() + " event" + (events.size() != 1 ? "s" : ""));
 
-            // Update last fetch time
-            long lastFetch = sheetService.getLastFetchTime();
+            long lastFetch = eventsApiService.getLastFetchTime();
             if (lastFetch > 0)
             {
                 long minutesAgo = (System.currentTimeMillis() - lastFetch) / 60000;
-                if (minutesAgo < 1)
-                {
-                    lastUpdateLabel.setText("Just now");
-                }
-                else
-                {
-                    lastUpdateLabel.setText(minutesAgo + "m ago");
-                }
+                lastUpdateLabel.setText(minutesAgo < 1 ? "Just now" : minutesAgo + "m ago");
             }
             else
             {
                 lastUpdateLabel.setText("Not synced");
             }
 
+            refreshHealthDot();
+
             eventsContainer.revalidate();
             eventsContainer.repaint();
-            
-            // Debug sizes after layout
-            if (DEBUG_SIZES)
-            {
-                SwingUtilities.invokeLater(() -> {
-                    log.info("=== DEBUG SIZES ===");
-                    log.info("Panel width: {}, Content width constant: {}, Text width constant: {}", 
-                        EventListPanel.this.getWidth(), CONTENT_WIDTH, TEXT_WIDTH);
-                    log.info("EventsContainer size: {}x{}", eventsContainer.getWidth(), eventsContainer.getHeight());
-                    log.info("EventsContainer preferred: {}x{}", 
-                        eventsContainer.getPreferredSize().width, eventsContainer.getPreferredSize().height);
-                    
-                    for (int i = 0; i < eventsContainer.getComponentCount(); i++)
-                    {
-                        Component c = eventsContainer.getComponent(i);
-                        log.info("Component {}: {} - size: {}x{}, preferred: {}x{}, min: {}x{}, max: {}x{}", 
-                            i, c.getClass().getSimpleName(),
-                            c.getWidth(), c.getHeight(),
-                            c.getPreferredSize().width, c.getPreferredSize().height,
-                            c.getMinimumSize().width, c.getMinimumSize().height,
-                            c.getMaximumSize().width, c.getMaximumSize().height);
-                    }
-                    log.info("===================");
-                });
-            }
         });
     }
 
-    private JPanel createEventPanel(ClanEvent event, boolean isNext)
+    private JPanel createTimelineDayMarker(String title, boolean muted, boolean connectTop, boolean connectBottom)
     {
-        JPanel eventPanel = new JPanel();
-        eventPanel.setLayout(new BoxLayout(eventPanel, BoxLayout.Y_AXIS));
-        eventPanel.setBackground(PANEL_COLOR);
-        eventPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
-        eventPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        // Constrain event panel width - BoxLayout respects this
-        eventPanel.setMaximumSize(new Dimension(CONTENT_WIDTH, Short.MAX_VALUE));
+        final int rowHeight = 30;
+        JPanel row = new JPanel(new BorderLayout(4, 0));
+        row.setBackground(BACKGROUND_COLOR);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMinimumSize(new Dimension(0, rowHeight));
+        row.setPreferredSize(new Dimension(contentWidth(), rowHeight));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, rowHeight));
+        row.setBorder(new EmptyBorder(8, 0, 2, 0));
 
-        // Determine status and colors
-        boolean isHappening = event.isHappeningNow();
-        boolean isImminent = event.isImminent();
-        
-        Color borderColor = null;
-        if (isHappening)
-        {
-            borderColor = HAPPENING_COLOR;
-        }
-        else if (isImminent)
-        {
-            borderColor = IMMINENT_COLOR;
-        }
-        else if (isNext)
-        {
-            borderColor = ACCENT_COLOR;
-        }
+        RailSegment rail = new RailSegment(null, 0, connectTop, connectBottom);
+        rail.setPreferredSize(new Dimension(RAIL_WIDTH, rowHeight));
+        row.add(rail, BorderLayout.WEST);
 
-        // Apply border
-        if (borderColor != null)
-        {
-            eventPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(borderColor, 2),
-                new EmptyBorder(6, 6, 6, 6)
-            ));
-        }
+        Color dateColor = muted ? MUTED_TEXT : SECONDARY_TEXT;
 
-        // === EVENT NAME (wraps to multiple lines, max ~60 chars) ===
-        String name = event.getName();
-        String displayName = name;
-        // Limit characters but allow word wrap for 2+ lines
-        int maxNameChars = 60;
-        if (name.length() > maxNameChars)
-        {
-            displayName = name.substring(0, maxNameChars) + "...";
-        }
-        
-        String nameColor;
-        if (isHappening)
-        {
-            nameColor = "#64ff64";
-        }
-        else if (isImminent)
-        {
-            nameColor = "#ff6464";
-        }
-        else if (isNext)
-        {
-            nameColor = "#ffc800";
-        }
-        else
-        {
-            nameColor = "#ffffff";
-        }
-        // Use word-wrap to allow multi-line names
-        JLabel nameLabel = new JLabel("<html><div style='width: " + TEXT_WIDTH + "px; word-wrap: break-word'>" + 
-            "<span style='color: " + nameColor + "'>" + escapeHtml(displayName) + "</span></div></html>");
-        nameLabel.setFont(FontManager.getRunescapeBoldFont().deriveFont(14f));
-        nameLabel.setToolTipText(name); // Full name in tooltip
-        nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        eventPanel.add(nameLabel);
-        eventPanel.add(Box.createVerticalStrut(8));
+        JPanel dateBlock = new JPanel(new BorderLayout(5, 0));
+        dateBlock.setOpaque(false);
+        dateBlock.setBorder(BorderFactory.createCompoundBorder(
+            new EmptyBorder(2, 0, 0, 0),
+            BorderFactory.createMatteBorder(0, 0, 1, 0, muted ? RAIL_COLOR : new Color(120, 120, 120))
+        ));
 
-        // HTML style for emoji-compatible line height
-        String emojiStyle = "style='width: " + TEXT_WIDTH + "px; line-height: 1.4; padding-top: 2px'";
+        JComponent calIcon = new CalendarGlyph(dateColor);
+        calIcon.setPreferredSize(new Dimension(11, 12));
+        calIcon.setMinimumSize(new Dimension(11, 12));
+        dateBlock.add(calIcon, BorderLayout.WEST);
 
-        // === DATE ===
-        JLabel dateLabel = new JLabel("<html><body " + emojiStyle + ">" +
-            "📅 <span style='color: #b0b0b0'>Date:</span> " + 
-            "<span style='color: " + (event.isToday() ? "#64c864" : "#ffffff") + "'>" + 
-            escapeHtml(event.getDayString()) + "</span></body></html>");
-        dateLabel.setFont(FontManager.getRunescapeSmallFont());
-        dateLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        eventPanel.add(dateLabel);
-        eventPanel.add(Box.createVerticalStrut(4));
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(FontManager.getRunescapeBoldFont());
+        titleLabel.setForeground(dateColor);
+        titleLabel.setBorder(new EmptyBorder(1, 0, 3, 0));
+        dateBlock.add(titleLabel, BorderLayout.CENTER);
 
-        // === TIME ===
-        String timeText = event.getTimeRange();
-        String duration = event.getDuration();
-        if (duration != null)
+        row.add(dateBlock, BorderLayout.CENTER);
+        return row;
+    }
+
+    /**
+     * Small status circle next to the panel title. Hover shows API health details.
+     */
+    private static final class HealthDot extends JComponent
+    {
+        private static final Color UNKNOWN = new Color(140, 140, 140);
+        private static final Color HEALTHY = new Color(72, 196, 88);
+        private static final Color DEGRADED = new Color(232, 180, 36);
+        private static final Color DOWN = new Color(220, 72, 72);
+
+        private Color fill = UNKNOWN;
+
+        private HealthDot()
         {
-            timeText += " (" + duration + ")";
-        }
-        JLabel timeLabel = new JLabel("<html><body " + emojiStyle + ">" +
-            "🕐 <span style='color: #b0b0b0'>Time:</span> " + 
-            "<span style='color: #ffffff'>" + escapeHtml(timeText) + "</span></body></html>");
-        timeLabel.setFont(FontManager.getRunescapeSmallFont());
-        timeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        eventPanel.add(timeLabel);
-        eventPanel.add(Box.createVerticalStrut(4));
-
-        // === HOST ===
-        boolean hasHost = event.getHost() != null && !event.getHost().isEmpty();
-        if (hasHost)
-        {
-            JLabel hostLabel = new JLabel("<html><body " + emojiStyle + ">" +
-                "📣 <span style='color: #b0b0b0'>Host:</span> " + 
-                "<span style='color: #ffffff'>" + escapeHtml(event.getHost()) + "</span></body></html>");
-            hostLabel.setFont(FontManager.getRunescapeSmallFont());
-            hostLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(hostLabel);
-            eventPanel.add(Box.createVerticalStrut(4));
+            setOpaque(false);
+            setPreferredSize(new Dimension(12, 12));
+            setMinimumSize(new Dimension(12, 12));
+            setMaximumSize(new Dimension(12, 12));
+            setToolTipText("No API status yet");
         }
 
-        // === LOCATION ===
-        boolean hasLocation = event.getLocation() != null && !event.getLocation().isEmpty();
-        if (hasLocation)
+        void setStatus(ApiStatus status)
         {
-            JLabel locationLabel = new JLabel("<html><body " + emojiStyle + ">" +
-                "📍 <span style='color: #b0b0b0'>Location:</span> " + 
-                "<span style='color: #ffffff'>" + escapeHtml(event.getLocation()) + "</span></body></html>");
-            locationLabel.setFont(FontManager.getRunescapeSmallFont());
-            locationLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(locationLabel);
-            eventPanel.add(Box.createVerticalStrut(4));
+            if (status == null)
+            {
+                fill = UNKNOWN;
+                setToolTipText("No API status yet");
+            }
+            else
+            {
+                switch (status.getLevel())
+                {
+                    case HEALTHY:
+                        fill = HEALTHY;
+                        break;
+                    case DEGRADED:
+                        fill = DEGRADED;
+                        break;
+                    case DOWN:
+                        fill = DOWN;
+                        break;
+                    case UNKNOWN:
+                    default:
+                        fill = UNKNOWN;
+                        break;
+                }
+                setToolTipText(status.getTooltip());
+            }
+            repaint();
         }
 
-        // === DESCRIPTION ===
+        @Override
+        protected void paintComponent(Graphics g)
+        {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try
+            {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int size = Math.min(getWidth(), getHeight()) - 2;
+                int x = (getWidth() - size) / 2;
+                int y = (getHeight() - size) / 2;
+                g2.setColor(fill);
+                g2.fillOval(x, y, size, size);
+                g2.setColor(new Color(0, 0, 0, 80));
+                g2.drawOval(x, y, size, size);
+            }
+            finally
+            {
+                g2.dispose();
+            }
+        }
+    }
+
+    /** Tiny calendar glyph for day headers. */
+    private static final class CalendarGlyph extends JComponent
+    {
+        private final Color color;
+
+        private CalendarGlyph(Color color)
+        {
+            this.color = color;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g)
+        {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try
+            {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+                int w = Math.min(getWidth(), 11);
+                int h = Math.min(getHeight(), 11);
+                int x = Math.max(0, (getWidth() - w) / 2);
+                int y = Math.max(0, (getHeight() - h) / 2);
+
+                g2.setColor(color);
+                // Binding rings
+                g2.fillRect(x + 2, y, 2, 3);
+                g2.fillRect(x + w - 4, y, 2, 3);
+                // Body
+                g2.drawRect(x, y + 2, w - 1, h - 3);
+                g2.fillRect(x, y + 2, w, 2);
+                // Date dots
+                g2.fillRect(x + 2, y + 6, 2, 2);
+                g2.fillRect(x + 5, y + 6, 2, 2);
+            }
+            finally
+            {
+                g2.dispose();
+            }
+        }
+    }
+
+    private String eventKey(ClanEvent event)
+    {
+        return Objects.toString(event.getName(), "")
+            + "|"
+            + Objects.toString(event.getDateTime(), "");
+    }
+
+    private EventTone eventTone(ClanEvent event, boolean isLive, boolean past)
+    {
+        boolean happening = isLive || (event != null && event.isHappeningNow());
+        if (happening)
+        {
+            return EventTone.LIVE;
+        }
+        if (past || (event != null && event.isPast()))
+        {
+            return EventTone.PAST;
+        }
+        if (event != null && event.isToday())
+        {
+            return EventTone.TODAY;
+        }
+        return EventTone.FUTURE;
+    }
+
+    /**
+     * Index among same-tone events earlier in the list, so siblings share a family
+     * but get a distinct shade.
+     */
+    private int toneVariantInList(List<ClanEvent> events, int index)
+    {
+        ClanEvent target = events.get(index);
+        EventTone tone = eventTone(target, false, target.isPast());
+        int variant = 0;
+        for (int i = 0; i < index; i++)
+        {
+            ClanEvent other = events.get(i);
+            if (eventTone(other, false, other.isPast()) == tone)
+            {
+                variant++;
+            }
+        }
+        return variant;
+    }
+
+    private Color toneColor(EventTone tone, int variant)
+    {
+        Color[] palette;
+        switch (tone)
+        {
+            case LIVE:
+                palette = TONE_LIVE;
+                break;
+            case TODAY:
+                palette = TONE_TODAY;
+                break;
+            case FUTURE:
+                palette = TONE_FUTURE;
+                break;
+            case PAST:
+            default:
+                palette = TONE_PAST;
+                break;
+        }
+        return palette[Math.floorMod(variant, palette.length)];
+    }
+
+    private JPanel createTimelineEventRow(
+        ClanEvent event,
+        boolean isLive,
+        boolean isNext,
+        boolean past,
+        int toneVariant,
+        boolean connectTop,
+        boolean connectBottom
+    )
+    {
+        boolean expanded = Objects.equals(expandedEventKey, eventKey(event));
+        boolean isHappening = isLive || event.isHappeningNow();
+        boolean isImminent = !past && event.isImminent();
+        EventTone tone = eventTone(event, isLive, past);
+        Color accent = toneColor(tone, toneVariant);
+
+        int width = contentWidth();
+        JPanel row = new JPanel(new BorderLayout(4, 0));
+        row.setBackground(BACKGROUND_COLOR);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMinimumSize(new Dimension(0, 1));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Short.MAX_VALUE));
+        row.setBorder(new EmptyBorder(2, 0, 2, 0));
+        row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        RailSegment rail = new RailSegment(accent, NODE_SIZE, connectTop, connectBottom);
+        rail.setPreferredSize(new Dimension(RAIL_WIDTH, 1));
+        row.add(rail, BorderLayout.WEST);
+
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBackground(BACKGROUND_COLOR);
+        body.setBorder(new EmptyBorder(5, 0, 10, 0));
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel nameRow = new JPanel(new BorderLayout(4, 0));
+        nameRow.setBackground(BACKGROUND_COLOR);
+        nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        String name = event.getName() == null ? "Untitled" : event.getName();
+        String prefix = isHappening ? "LIVE · " : "";
+        int maxChars = Math.max(18, (width - RAIL_WIDTH - 18) / 6);
+        String displayName = prefix + name;
+        if (displayName.length() > maxChars)
+        {
+            displayName = displayName.substring(0, maxChars) + "…";
+        }
+
+        JLabel nameLabel = new JLabel(displayName);
+        nameLabel.setFont(FontManager.getRunescapeBoldFont());
+        nameLabel.setForeground(accent);
+        nameLabel.setToolTipText(name);
+        nameRow.add(nameLabel, BorderLayout.CENTER);
+
+        JLabel chevron = new JLabel(expanded ? "▾" : "▸");
+        chevron.setFont(FontManager.getRunescapeSmallFont());
+        chevron.setForeground(MUTED_TEXT);
+        nameRow.add(chevron, BorderLayout.EAST);
+        body.add(nameRow);
+
+        JLabel metaLabel = new JLabel(event.getTimelineMetaLine());
+        metaLabel.setFont(FontManager.getRunescapeSmallFont());
+        metaLabel.setForeground(tone == EventTone.PAST ? MUTED_TEXT
+            : (isHappening || isNext || isImminent) ? SECONDARY_TEXT
+            : MUTED_TEXT);
+        metaLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(metaLabel);
+
+        if (!expanded)
+        {
+            String host = event.getHost();
+            if (host != null && !host.trim().isEmpty() && (isHappening || isNext))
+            {
+                JLabel hostPeek = new JLabel(host.trim());
+                hostPeek.setFont(FontManager.getRunescapeSmallFont());
+                hostPeek.setForeground(MUTED_TEXT);
+                hostPeek.setAlignmentX(Component.LEFT_ALIGNMENT);
+                body.add(hostPeek);
+            }
+        }
+
+        if (expanded)
+        {
+            body.add(Box.createVerticalStrut(4));
+            body.add(createExpandedDetails(event));
+        }
+
+        row.add(body, BorderLayout.CENTER);
+
+        List<JComponent> hoverTargets = new ArrayList<>();
+        hoverTargets.add(row);
+        hoverTargets.add(body);
+        hoverTargets.add(nameRow);
+
+        MouseAdapter toggle = new MouseAdapter()
+        {
+            @Override
+            public void mouseClicked(MouseEvent e)
+            {
+                String key = eventKey(event);
+                expandedEventKey = Objects.equals(expandedEventKey, key) ? null : key;
+                updateEvents();
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e)
+            {
+                for (JComponent c : hoverTargets)
+                {
+                    c.setBackground(HOVER_COLOR);
+                }
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e)
+            {
+                for (JComponent c : hoverTargets)
+                {
+                    c.setBackground(BACKGROUND_COLOR);
+                }
+            }
+        };
+        for (JComponent c : hoverTargets)
+        {
+            c.addMouseListener(toggle);
+        }
+        nameLabel.addMouseListener(toggle);
+        metaLabel.addMouseListener(toggle);
+        chevron.addMouseListener(toggle);
+        rail.addMouseListener(toggle);
+
+        return row;
+    }
+
+    /**
+     * Left-column spine segment: vertical rail + optional square status node.
+     */
+    private static final class RailSegment extends JPanel
+    {
+        private final Color nodeColor;
+        private final int nodeSize;
+        private final boolean connectTop;
+        private final boolean connectBottom;
+
+        private RailSegment(Color nodeColor, int nodeSize, boolean connectTop, boolean connectBottom)
+        {
+            this.nodeColor = nodeColor;
+            this.nodeSize = nodeSize;
+            this.connectTop = connectTop;
+            this.connectBottom = connectBottom;
+            setOpaque(false);
+            setPreferredSize(new Dimension(RAIL_WIDTH, 12));
+            setMinimumSize(new Dimension(RAIL_WIDTH, 12));
+            setMaximumSize(new Dimension(RAIL_WIDTH, Integer.MAX_VALUE));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g)
+        {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            try
+            {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+                int midX = getWidth() / 2;
+                int midY = nodeSize > 0 ? Math.max(nodeSize, 10) : getHeight() / 2;
+                if (getHeight() > 28 && nodeSize > 0)
+                {
+                    midY = 8 + nodeSize / 2;
+                }
+
+                g2.setColor(RAIL_COLOR);
+                g2.setStroke(new BasicStroke(2f));
+                if (connectTop)
+                {
+                    g2.drawLine(midX, 0, midX, midY);
+                }
+                if (connectBottom)
+                {
+                    g2.drawLine(midX, midY, midX, getHeight());
+                }
+
+                if (nodeColor != null && nodeSize > 0)
+                {
+                    int x = midX - nodeSize / 2;
+                    int y = midY - nodeSize / 2;
+                    g2.setColor(nodeColor);
+                    g2.fillRect(x, y, nodeSize, nodeSize);
+                }
+            }
+            finally
+            {
+                g2.dispose();
+            }
+        }
+    }
+
+    private JPanel createExpandedDetails(ClanEvent event)
+    {
+        JPanel details = new JPanel();
+        details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
+        details.setBackground(BACKGROUND_COLOR);
+        details.setAlignmentX(Component.LEFT_ALIGNMENT);
+        details.setBorder(new EmptyBorder(2, 0, 0, 0));
+        details.setMaximumSize(new Dimension(CONTENT_WIDTH, Short.MAX_VALUE));
+
+        if (event.getHost() != null && !event.getHost().isEmpty())
+        {
+            details.add(detailLine("Host  " + event.getHost()));
+        }
+        if (event.getLocation() != null && !event.getLocation().isEmpty())
+        {
+            details.add(detailLine("At  " + event.getLocation()));
+        }
         if (event.getDescription() != null && !event.getDescription().isEmpty())
         {
-            eventPanel.add(Box.createVerticalStrut(4));
-            
             String desc = event.getDescription();
-            String fullDesc = desc;
+            String full = desc;
             if (desc.length() > MAX_DESC_LENGTH)
             {
-                desc = desc.substring(0, MAX_DESC_LENGTH) + "...";
+                desc = desc.substring(0, MAX_DESC_LENGTH) + "…";
             }
-            
-            JLabel descHeaderLabel = new JLabel("<html><body " + emojiStyle + ">" +
-                "📝 <span style='color: #b0b0b0'>Description:</span></body></html>");
-            descHeaderLabel.setFont(FontManager.getRunescapeSmallFont());
-            descHeaderLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(descHeaderLabel);
-            eventPanel.add(Box.createVerticalStrut(3));
-            
-            JLabel descLabel = new JLabel("<html><body style='width: " + TEXT_WIDTH + "px; color: #c8c8c8'>" + 
-                escapeHtml(desc) + "</body></html>");
+            JLabel descLabel = new JLabel("<html><body style='width:" + (TEXT_WIDTH - 20)
+                + "px;color:#c8c8c8'>" + escapeHtml(desc) + "</body></html>");
             descLabel.setFont(FontManager.getRunescapeSmallFont());
             descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            if (fullDesc.length() > MAX_DESC_LENGTH)
+            if (full.length() > MAX_DESC_LENGTH)
             {
-                descLabel.setToolTipText("<html><body style='width: 300px'>" + 
-                    escapeHtml(fullDesc) + "</body></html>");
+                descLabel.setToolTipText("<html><body style='width:280px'>"
+                    + escapeHtml(full) + "</body></html>");
             }
-            eventPanel.add(descLabel);
+            details.add(Box.createVerticalStrut(3));
+            details.add(descLabel);
         }
-
-        // === LINK ===
         if (event.hasUrl())
         {
-            eventPanel.add(Box.createVerticalStrut(6));
-            
-            JLabel linkLabel = new JLabel("🔗 More Info");
+            details.add(Box.createVerticalStrut(4));
+            JLabel linkLabel = new JLabel("Open link ›");
             linkLabel.setFont(FontManager.getRunescapeSmallFont());
             linkLabel.setForeground(LINK_COLOR);
             linkLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             linkLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            
             linkLabel.addMouseListener(new MouseAdapter()
             {
                 @Override
@@ -675,146 +1920,54 @@ public class EventListPanel extends PluginPanel
                 @Override
                 public void mouseEntered(MouseEvent e)
                 {
-                    linkLabel.setText("<html><u>🔗 More Info</u></html>");
+                    linkLabel.setText("<html><u>Open link ›</u></html>");
                 }
 
                 @Override
                 public void mouseExited(MouseEvent e)
                 {
-                    linkLabel.setText("🔗 More Info");
+                    linkLabel.setText("Open link ›");
                 }
             });
-            
-            eventPanel.add(linkLabel);
+            details.add(linkLabel);
         }
-
-        // === STATUS / COUNTDOWN (at bottom) ===
-        eventPanel.add(Box.createVerticalStrut(8));
-        if (isHappening)
-        {
-            JLabel statusLbl = new JLabel("<html><body " + emojiStyle + ">" +
-                "🟢 <span style='color: #64ff64'><b>HAPPENING NOW</b></span></body></html>");
-            statusLbl.setFont(FontManager.getRunescapeBoldFont());
-            statusLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(statusLbl);
-        }
-        else if (event.isUpcoming())
-        {
-            String countdownColor = isImminent ? "#ff6464" : "#ffffff";
-            JLabel countdownLabel = new JLabel("<html><body " + emojiStyle + ">" +
-                "⏱️ <span style='color: " + countdownColor + "'><b>Starts in: " + 
-                escapeHtml(event.getTimeUntil()) + "</b></span></body></html>");
-            countdownLabel.setFont(FontManager.getRunescapeBoldFont());
-            countdownLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            eventPanel.add(countdownLabel);
-        }
-
-        // Hover effect for the whole panel
-        final Color originalBg = PANEL_COLOR;
-        eventPanel.addMouseListener(new MouseAdapter()
-        {
-            @Override
-            public void mouseEntered(MouseEvent e)
-            {
-                eventPanel.setBackground(HOVER_COLOR);
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e)
-            {
-                eventPanel.setBackground(originalBg);
-            }
-        });
-
-        return eventPanel;
+        return details;
     }
 
-    /**
-     * Shows an error message in the panel.
-     */
+    private JLabel detailLine(String text)
+    {
+        JLabel label = new JLabel(text);
+        label.setFont(FontManager.getRunescapeSmallFont());
+        label.setForeground(SECONDARY_TEXT);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        label.setBorder(new EmptyBorder(1, 0, 1, 0));
+        return label;
+    }
+
     public void showError(String message)
     {
-        SwingUtilities.invokeLater(() -> {
+        SwingUtilities.invokeLater(() ->
+        {
             eventsContainer.removeAll();
-
             JLabel errorLabel = new JLabel("<html><center>" + message + "</center></html>");
             errorLabel.setFont(FontManager.getRunescapeFont());
-            errorLabel.setForeground(IMMINENT_COLOR);
+            errorLabel.setForeground(new Color(255, 100, 100));
             errorLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
             errorLabel.setBorder(new EmptyBorder(20, 0, 20, 0));
             eventsContainer.add(errorLabel);
             eventsContainer.add(Box.createVerticalGlue());
-
             statusLabel.setText("Error");
-            
+            refreshHealthDot();
             eventsContainer.revalidate();
             eventsContainer.repaint();
         });
     }
 
-    public void updateSeasonalTelemetry(SeasonalTelemetry telemetry)
-    {
-        if (telemetry == null)
-        {
-            return;
-        }
-
-        SwingUtilities.invokeLater(() ->
-        {
-            String status = "Seasonal: "
-                + telemetry.getLinkStatus()
-                + " | queued=" + telemetry.getQueuedCount()
-                + " sent=" + telemetry.getSentCount()
-                + " failed=" + telemetry.getFailedCount();
-            if (telemetry.isPausedForAuth())
-            {
-                status += " | auth paused";
-            }
-            seasonalStatusLabel.setText(status);
-            seasonalStatusLabel.setToolTipText("<html>Last API: " + escapeHtml(telemetry.getLastApiResponse())
-                + "<br>Last error: " + escapeHtml(telemetry.getLastError()) + "</html>");
-
-            if (seasonalLinkLabel != null)
-            {
-                seasonalLinkLabel.setText(telemetry.getLinkStatus());
-            }
-            if (seasonalCountsLabel != null)
-            {
-                String counts = "Queue: " + telemetry.getQueuedCount()
-                    + " pending | " + telemetry.getSentCount()
-                    + " sent | " + telemetry.getFailedCount()
-                    + " failed"
-                    + (telemetry.isPausedForAuth() ? " (auth paused)" : "");
-                seasonalCountsLabel.setText(counts);
-            }
-            if (seasonalManifestLabel != null)
-            {
-                seasonalManifestLabel.setText("Manifest: " + telemetry.getManifestStatus());
-            }
-            if (seasonalApiLabel != null)
-            {
-                seasonalApiLabel.setText(truncateText("API: " + telemetry.getLastApiResponse(), 72));
-                seasonalApiLabel.setToolTipText(telemetry.getLastApiResponse());
-            }
-            if (seasonalErrorLabel != null)
-            {
-                String err = telemetry.getLastError() == null || telemetry.getLastError().isEmpty()
-                    ? "none"
-                    : telemetry.getLastError();
-                seasonalErrorLabel.setText(truncateText("Error: " + err, 72));
-                seasonalErrorLabel.setToolTipText(err);
-            }
-        });
-    }
-
-    /**
-     * Shows a loading state in the panel.
-     */
     public void showLoading()
     {
-        SwingUtilities.invokeLater(() -> {
+        SwingUtilities.invokeLater(() ->
+        {
             eventsContainer.removeAll();
-
             JLabel loadingLabel = new JLabel("Loading events...");
             loadingLabel.setFont(FontManager.getRunescapeFont());
             loadingLabel.setForeground(SECONDARY_TEXT);
@@ -822,17 +1975,13 @@ public class EventListPanel extends PluginPanel
             loadingLabel.setBorder(new EmptyBorder(20, 0, 20, 0));
             eventsContainer.add(loadingLabel);
             eventsContainer.add(Box.createVerticalGlue());
-
             statusLabel.setText("Loading...");
-
+            refreshHealthDot();
             eventsContainer.revalidate();
             eventsContainer.repaint();
         });
     }
 
-    /**
-     * Escapes HTML special characters in a string.
-     */
     private String escapeHtml(String text)
     {
         if (text == null)
@@ -845,14 +1994,5 @@ public class EventListPanel extends PluginPanel
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("\n", "<br>");
-    }
-
-    private String truncateText(String text, int maxLength)
-    {
-        if (text == null || text.length() <= maxLength)
-        {
-            return text == null ? "" : text;
-        }
-        return text.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 }

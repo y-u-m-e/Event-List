@@ -9,9 +9,12 @@ nb-configuration.xml
 nbproject/
 
 # Cursor
-.cursor/
 .vscode/
 null-ignored.json
+
+# Local seasonal/research data (not packaged in the plugin JAR)
+data/
+tools/
 
 # Build artifacts
 bin/
