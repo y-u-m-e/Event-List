@@ -23,8 +23,6 @@ import java.util.List;
 @Singleton
 public class SeasonalCatalogService
 {
-    public static final String SEASONAL_API_URL = EventsApiService.API_BASE + "/plugins/seasonal";
-
     private final EventListConfig config;
     private final OkHttpClient httpClient;
     private final Gson gson;

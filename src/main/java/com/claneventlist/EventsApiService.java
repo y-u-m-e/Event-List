@@ -39,30 +39,6 @@ public class EventsApiService
         return config != null && config.useDevApi() ? DEV_API_BASE : API_BASE;
     }
 
-    /**
-     * Normalizes a configured plugin API origin. Empty input uses production.
-     *
-     * @param raw configured host or full origin
-     * @return origin without a trailing slash
-     */
-    public static String resolveApiBase(String raw)
-    {
-        String value = raw == null ? "" : raw.trim();
-        if (value.isEmpty())
-        {
-            return API_BASE;
-        }
-        if (!value.startsWith("http://") && !value.startsWith("https://"))
-        {
-            value = "https://" + value;
-        }
-        while (value.endsWith("/"))
-        {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
-    }
-
     public String apiBase()
     {
         return resolveApiBase(config);

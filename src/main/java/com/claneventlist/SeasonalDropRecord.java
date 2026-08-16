@@ -19,11 +19,4 @@ final class SeasonalDropRecord
     String droppedAt = "";
     String detail = "";
     long savedAtEpochMs;
-
-    String summaryLine()
-    {
-        String item = itemName == null || itemName.isEmpty() ? ("#" + itemId) : itemName;
-        String when = (date == null ? "" : date) + (time == null || time.isEmpty() ? "" : " " + time);
-        return (when.isEmpty() ? "" : when + " · ") + boss + " — " + item;
-    }
 }

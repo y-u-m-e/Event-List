@@ -28,10 +28,7 @@ public class ClanEvent implements Comparable<ClanEvent>
     private String url;                  // Link to more info / signup
     /** Full UTC end instant when provided by the API (preferred over endTime alone). */
     private LocalDateTime endDateTime;
-    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' h:mm a");
-    private static final DateTimeFormatter SHORT_FORMAT = DateTimeFormatter.ofPattern("MMM dd h:mm a");
     private static final DateTimeFormatter TIME_ONLY = DateTimeFormatter.ofPattern("h:mm a");
-    private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern("EEE, MMM dd");
     private static final DateTimeFormatter DAY_BLOCK_FORMAT = DateTimeFormatter.ofPattern("EEE MMM d");
     
     private static final ZoneId UTC = ZoneId.of("UTC");
@@ -242,45 +239,6 @@ public class ClanEvent implements Comparable<ClanEvent>
     }
 
     /**
-     * Returns a formatted string of the event date/time in local timezone.
-     */
-    public String getFormattedDateTime()
-    {
-        java.time.ZonedDateTime local = getStartZoned();
-        if (local == null)
-        {
-            return "TBD";
-        }
-        return local.format(DISPLAY_FORMAT) + " " + local.format(ZONE_ABBR);
-    }
-
-    /**
-     * Returns a short formatted string of the event date/time in local timezone.
-     */
-    public String getShortDateTime()
-    {
-        java.time.ZonedDateTime local = getStartZoned();
-        if (local == null)
-        {
-            return "TBD";
-        }
-        return local.format(SHORT_FORMAT) + " " + local.format(ZONE_ABBR);
-    }
-
-    /**
-     * Returns just the day (e.g., "Mon, Dec 15") in local timezone.
-     */
-    public String getDayString()
-    {
-        LocalDateTime local = getLocalDateTime();
-        if (local == null)
-        {
-            return "TBD";
-        }
-        return local.format(DAY_FORMAT);
-    }
-
-    /**
      * Returns the time range in the user's local timezone (e.g. "1:00 PM – 2:00 PM PDT").
      * Sheet times are stored as UTC and converted here.
      */
@@ -406,26 +364,6 @@ public class ClanEvent implements Comparable<ClanEvent>
             return false;
         }
         return local.toLocalDate().equals(LocalDateTime.now().toLocalDate().plusDays(1));
-    }
-
-    /**
-     * Compact when-line for agenda rows (local timezone).
-     * Today/tomorrow: time range only; later/past: day + time.
-     */
-    public String getAgendaWhenLine()
-    {
-        LocalDateTime local = getLocalDateTime();
-        if (local == null)
-        {
-            return "TBD";
-        }
-
-        String time = getTimeRange();
-        if (isToday() || isTomorrow())
-        {
-            return time;
-        }
-        return local.format(DAY_FORMAT) + " · " + time;
     }
 
     /**
