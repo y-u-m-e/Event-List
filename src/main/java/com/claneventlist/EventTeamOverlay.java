@@ -39,7 +39,8 @@ class EventTeamOverlay extends Overlay
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.enableTeamIcons() || !config.nameplateTeamIcons() || !teamService.hasRoster())
+        if (!config.enableTeamIcons() || !config.nameplateTeamIcons() || !teamService.hasRoster()
+            || teamService.isInPvpArea())
         {
             return null;
         }

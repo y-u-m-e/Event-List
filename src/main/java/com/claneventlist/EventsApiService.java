@@ -47,8 +47,9 @@ public class EventsApiService
     private final EventListConfig config;
     private final OkHttpClient httpClient;
     private final Gson gson;
-    private List<ClanEvent> cachedEvents = new ArrayList<>();
-    private long lastFetchTime = 0;
+    /** Replaced wholesale (never mutated) so the EDT and executor can read it without locking. */
+    private volatile List<ClanEvent> cachedEvents = Collections.emptyList();
+    private volatile long lastFetchTime = 0;
     private volatile ApiStatus apiStatus = ApiStatus.unknown("Enable Load clan events to check API health");
 
     @Inject
@@ -99,7 +100,7 @@ public class EventsApiService
             String body = responseBody.string();
             String feedCache = parseFeedCache(body);
             List<ClanEvent> events = parseEventsJson(body);
-            cachedEvents = events;
+            cachedEvents = Collections.unmodifiableList(events);
             lastFetchTime = System.currentTimeMillis();
             apiStatus = buildStatus(health, true, response.code(), feedCache, events.size());
             log.debug("Fetched {} events", events.size());
@@ -347,7 +348,7 @@ public class EventsApiService
 
     private static String text(JsonObject row, String key)
     {
-        if (row == null || !row.has(key) || row.get(key).isJsonNull())
+        if (row == null || !row.has(key) || !row.get(key).isJsonPrimitive())
         {
             return "";
         }
@@ -392,7 +393,7 @@ public class EventsApiService
 
     public void clearEvents()
     {
-        cachedEvents.clear();
+        cachedEvents = Collections.emptyList();
         lastFetchTime = 0;
         apiStatus = ApiStatus.unknown("Enable Load clan events to check API health");
         log.debug("Cleared all cached events");

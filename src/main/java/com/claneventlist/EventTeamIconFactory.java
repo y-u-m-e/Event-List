@@ -1,5 +1,6 @@
 package com.claneventlist;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.Color;
@@ -10,6 +11,7 @@ import java.awt.image.BufferedImage;
  * Official OSRS clan-color icons ({@code Clan icon - Red.png}, etc.) for team badges.
  * Source: oldschool.runescape.wiki (Jagex interface sprites).
  */
+@Slf4j
 final class EventTeamIconFactory
 {
     /**
@@ -149,11 +151,6 @@ final class EventTeamIconFactory
         return TeamPalette.byIndex(Math.max(0, teamNumber - 1));
     }
 
-    static Color defaultTeamColor(int teamNumber)
-    {
-        return defaultPalette(teamNumber).getColor();
-    }
-
     /** 11×11 badge for chat names and overhead. */
     static BufferedImage loadBadge(TeamPalette palette)
     {
@@ -179,6 +176,7 @@ final class EventTeamIconFactory
         }
         catch (Exception e)
         {
+            log.debug("Clan icon {} failed to load, drawing fallback: {}", p.getKey(), e.getMessage());
             BufferedImage fallback = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = fallback.createGraphics();
             g.setColor(p.getColor());

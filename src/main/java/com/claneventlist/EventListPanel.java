@@ -14,6 +14,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.plaf.basic.BasicHTML;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -429,8 +430,8 @@ public class EventListPanel extends PluginPanel
         teamCountSpinner.addChangeListener(e ->
         {
             int value = (Integer) teamCountSpinner.getValue();
+            // ConfigChanged("teamCount") rebuilds the team sections.
             configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "teamCount", value);
-            rebuildTeamsUi();
         });
         countRow.add(teamCountSpinner);
         section.add(countRow);
@@ -546,7 +547,7 @@ public class EventListPanel extends PluginPanel
                 refreshCatalogCallback.run();
             }
         }));
-        buttons.add(createPanelButton("Test submit", "POST the first allowed drop to test the API", e ->
+        buttons.add(createPanelButton("Test submit", "POST the first allowed drop to the dev API (dev-api.ironforged.gg), never prod", e ->
         {
             if (testSubmitCallback != null)
             {
@@ -865,24 +866,44 @@ public class EventListPanel extends PluginPanel
 
     public void updateTeamsSyncLabel()
     {
-        if (teamsSyncLabel == null || eventTeamSyncService == null)
+        SwingUtilities.invokeLater(() ->
         {
-            return;
-        }
-        String status = eventTeamSyncService.getLastStatus();
-        String err = eventTeamSyncService.getLastError();
-        if (!config.enableTeamRosterSync())
+            if (teamsSyncLabel == null || eventTeamSyncService == null)
+            {
+                return;
+            }
+            String status = eventTeamSyncService.getLastStatus();
+            if (!config.enableTeamRosterSync())
+            {
+                teamsSyncLabel.setText("API sync off — enable in plugin config");
+            }
+            else
+            {
+                teamsSyncLabel.setText(status == null ? " " : status);
+            }
+        });
+    }
+
+    /**
+     * Pulls saved team names into the existing text areas without rebuilding them,
+     * skipping the one being typed in so the caret and focus are kept.
+     */
+    public void refreshTeamNames()
+    {
+        SwingUtilities.invokeLater(() ->
         {
-            teamsSyncLabel.setText("API sync off — enable in plugin config");
-        }
-        else if (err != null && !err.isEmpty())
-        {
-            teamsSyncLabel.setText(status);
-        }
-        else
-        {
-            teamsSyncLabel.setText(status == null ? " " : status);
-        }
+            for (Map.Entry<Integer, JTextArea> entry : teamAreas.entrySet())
+            {
+                JTextArea area = entry.getValue();
+                String saved = Objects.toString(configManager.getConfiguration(
+                    EventListConfig.CONFIG_GROUP, EventTeamService.teamNamesKey(entry.getKey())), "");
+                if (!area.isFocusOwner() && !saved.equals(area.getText()))
+                {
+                    area.setText(saved);
+                }
+            }
+            refreshTeamsOnlineCounts();
+        });
     }
 
     private JPanel createTeamSection(int team)
@@ -1241,8 +1262,6 @@ public class EventListPanel extends PluginPanel
     {
         SwingUtilities.invokeLater(() ->
         {
-            updateSeasonalSection();
-
             // Lock current viewport width so resize listener does not loop.
             laidOutViewportWidth = viewportWidth();
 
@@ -1288,6 +1307,7 @@ public class EventListPanel extends PluginPanel
                 List<ClanEvent> weekly = new ArrayList<>();
                 Map<LocalDate, List<ClanEvent>> byDay = new LinkedHashMap<>();
                 int listed = 0;
+                int hidden = 0;
 
                 // Ensure today's block exists first when a live non-weekly event is active
                 if (activeEvent != null
@@ -1327,7 +1347,8 @@ public class EventListPanel extends PluginPanel
 
                     if (listed >= maxEvents)
                     {
-                        break;
+                        hidden++;
+                        continue;
                     }
                     listed++;
 
@@ -1351,7 +1372,7 @@ public class EventListPanel extends PluginPanel
                         "WEEKLY · SOTW / BOTW",
                         weeklyPast,
                         false,
-                        !byDay.isEmpty() || !weekly.isEmpty()));
+                        true));
                     firstRow = false;
 
                     for (int i = 0; i < weekly.size(); i++)
@@ -1388,7 +1409,7 @@ public class EventListPanel extends PluginPanel
                         dayEvents.get(0).getDayBlockHeader(),
                         pastDay,
                         !firstRow,
-                        !dayEvents.isEmpty() || !lastDay));
+                        true));
                     firstRow = false;
 
                     for (int i = 0; i < dayEvents.size(); i++)
@@ -1410,9 +1431,9 @@ public class EventListPanel extends PluginPanel
                     }
                 }
 
-                if (events.size() > maxEvents)
+                if (hidden > 0)
                 {
-                    JLabel moreLabel = new JLabel("+" + (events.size() - maxEvents) + " more");
+                    JLabel moreLabel = new JLabel("+" + hidden + " more");
                     moreLabel.setFont(FontManager.getRunescapeSmallFont());
                     moreLabel.setForeground(SECONDARY_TEXT);
                     moreLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1472,7 +1493,7 @@ public class EventListPanel extends PluginPanel
         calIcon.setMinimumSize(new Dimension(11, 12));
         dateBlock.add(calIcon, BorderLayout.WEST);
 
-        JLabel titleLabel = new JLabel(title);
+        JLabel titleLabel = new JLabel(plainLabelText(title));
         titleLabel.setFont(FontManager.getRunescapeBoldFont());
         titleLabel.setForeground(dateColor);
         titleLabel.setBorder(new EmptyBorder(1, 0, 3, 0));
@@ -1711,10 +1732,10 @@ public class EventListPanel extends PluginPanel
             displayName = displayName.substring(0, maxChars) + "…";
         }
 
-        JLabel nameLabel = new JLabel(displayName);
+        JLabel nameLabel = new JLabel(plainLabelText(displayName));
         nameLabel.setFont(FontManager.getRunescapeBoldFont());
         nameLabel.setForeground(accent);
-        nameLabel.setToolTipText(name);
+        nameLabel.setToolTipText(plainLabelText(name));
         nameRow.add(nameLabel, BorderLayout.CENTER);
 
         JLabel chevron = new JLabel(expanded ? "▾" : "▸");
@@ -1723,7 +1744,7 @@ public class EventListPanel extends PluginPanel
         nameRow.add(chevron, BorderLayout.EAST);
         body.add(nameRow);
 
-        JLabel metaLabel = new JLabel(event.getTimelineMetaLine());
+        JLabel metaLabel = new JLabel(plainLabelText(event.getTimelineMetaLine()));
         metaLabel.setFont(FontManager.getRunescapeSmallFont());
         metaLabel.setForeground(tone == EventTone.PAST ? MUTED_TEXT
             : (isHappening || isNext || isImminent) ? SECONDARY_TEXT
@@ -1736,7 +1757,7 @@ public class EventListPanel extends PluginPanel
             String host = event.getHost();
             if (host != null && !host.trim().isEmpty() && (isHappening || isNext))
             {
-                JLabel hostPeek = new JLabel(host.trim());
+                JLabel hostPeek = new JLabel(plainLabelText(host.trim()));
                 hostPeek.setFont(FontManager.getRunescapeSmallFont());
                 hostPeek.setForeground(MUTED_TEXT);
                 hostPeek.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1828,6 +1849,9 @@ public class EventListPanel extends PluginPanel
             {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
                 int midX = getWidth() / 2;
+                // Node rows: pin the node near the top so it lines up with the event name even
+                // when the row grows (expanded details); tall rows use a fixed offset past the
+                // body's top padding. Day markers (no node) just join at the vertical middle.
                 int midY = nodeSize > 0 ? Math.max(nodeSize, 10) : getHeight() / 2;
                 if (getHeight() > 28 && nodeSize > 0)
                 {
@@ -1976,6 +2000,19 @@ public class EventListPanel extends PluginPanel
             eventsContainer.revalidate();
             eventsContainer.repaint();
         });
+    }
+
+    /**
+     * API strings starting with {@code <html>} would be rendered as HTML by Swing;
+     * a leading space disables that.
+     */
+    private static String plainLabelText(String text)
+    {
+        if (text == null)
+        {
+            return "";
+        }
+        return BasicHTML.isHTMLString(text) ? " " + text : text;
     }
 
     private String escapeHtml(String text)

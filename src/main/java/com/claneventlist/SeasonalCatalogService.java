@@ -61,8 +61,8 @@ public class SeasonalCatalogService
             {
                 lastError = "HTTP " + response.code();
                 log.warn("Seasonal catalog fetch failed: {}", lastError);
-                // Fail closed: do not keep a stale allowlist forever after hard errors mid-event;
-                // keep previous catalog so brief blips do not wipe eligibility.
+                // Keep the previous catalog so a brief outage does not wipe eligibility.
+                // lastFetchTime is not advanced, so needsRefresh() retries on the next 1-minute tick.
                 return;
             }
 
@@ -104,54 +104,52 @@ public class SeasonalCatalogService
             JsonObject event = root.has("event") && root.get("event").isJsonObject()
                 ? root.getAsJsonObject("event")
                 : null;
-            if (event == null || event.isJsonNull())
+            boolean nextHasActiveEvent = event != null;
+            String nextEventId = "";
+            String nextEventPassphrase = "";
+            String nextEventName = "";
+            boolean nextEventEnded = false;
+            if (event != null)
             {
-                hasActiveEvent = false;
-                eventId = "";
-                eventPassphrase = "";
-                eventName = "";
-                eventEnded = false;
-            }
-            else
-            {
-                hasActiveEvent = true;
-                eventId = firstNonEmpty(
+                nextEventId = firstNonEmpty(
                     text(event, "seasonal_event_id"),
                     firstNonEmpty(text(event, "id"), text(event, "plugin_keyword"))
                 );
                 // Seasonal Event Passphrase — overlay text + submit auth (not the event id).
-                eventPassphrase = firstNonEmpty(
+                nextEventPassphrase = firstNonEmpty(
                     text(event, "event_passphrase"),
                     firstNonEmpty(
                         text(event, "seasonal_event_passphrase"),
                         firstNonEmpty(text(event, "passphrase"), text(event, "event_key"))
                     )
                 );
-                eventName = text(event, "name");
-                eventEnded = event.has("event_ended") && event.get("event_ended").getAsBoolean();
+                nextEventName = text(event, "name");
+                nextEventEnded = bool(event, "event_ended");
             }
 
-            acceptingSubmissions = root.has("accepting_submissions")
-                && root.get("accepting_submissions").getAsBoolean();
             // Older responses: treat a non-empty catalog as accepting.
-            if (!root.has("accepting_submissions"))
-            {
-                acceptingSubmissions = !next.isEmpty();
-            }
+            boolean nextAccepting = root.has("accepting_submissions")
+                ? bool(root, "accepting_submissions")
+                : !next.isEmpty();
+            boolean nextPassphraseRequired = bool(root, "passphrase_required");
 
-            passphraseRequired = root.has("passphrase_required")
-                && root.get("passphrase_required").getAsBoolean();
+            hasActiveEvent = nextHasActiveEvent;
+            eventId = nextEventId;
+            eventPassphrase = nextEventPassphrase;
+            eventName = nextEventName;
+            eventEnded = nextEventEnded;
+            acceptingSubmissions = nextAccepting;
+            passphraseRequired = nextPassphraseRequired;
             catalog = Collections.unmodifiableList(next);
             lastFetchTime = System.currentTimeMillis();
             lastError = "";
             log.debug(
-                "Seasonal catalog refreshed: active={} ended={} id={} passphrase={} entries={} accepting={}",
-                hasActiveEvent,
-                eventEnded,
-                eventId,
-                eventPassphrase,
-                catalog.size(),
-                acceptingSubmissions
+                "Seasonal catalog refreshed: active={} ended={} id={} entries={} accepting={}",
+                nextHasActiveEvent,
+                nextEventEnded,
+                nextEventId,
+                next.size(),
+                nextAccepting
             );
         }
         catch (Exception e)
@@ -302,11 +300,16 @@ public class SeasonalCatalogService
 
     private static String text(JsonObject row, String key)
     {
-        if (row == null || !row.has(key) || row.get(key).isJsonNull())
+        if (row == null || !row.has(key) || !row.get(key).isJsonPrimitive())
         {
             return "";
         }
         return row.get(key).getAsString().trim();
+    }
+
+    private static boolean bool(JsonObject obj, String key)
+    {
+        return obj.has(key) && obj.get(key).isJsonPrimitive() && obj.get(key).getAsBoolean();
     }
 
     private static int intVal(JsonObject row, String key)

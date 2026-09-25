@@ -19,16 +19,20 @@ import java.util.UUID;
 
 /**
  * Disk-backed retry queue for failed seasonal drop uploads.
+ * Stores the event passphrase and the screenshot in plaintext under {@code .runelite/}.
  */
 @Slf4j
 @Singleton
 public class SeasonalSubmitQueue
 {
     private static final int MAX_QUEUE = 20;
-    private static final int MAX_ATTEMPTS = 8;
+    /** Age-based expiry: processQueue runs every minute, so an attempt cap gave up after a short outage. */
+    private static final long MAX_AGE_MS = 24L * 60 * 60 * 1000;
 
     private final Gson gson;
     private final List<QueuedDrop> queue = new ArrayList<>();
+    /** Mirrors queue.size() so the EDT can read it without waiting on a save. */
+    private volatile int count;
 
     @Inject
     public SeasonalSubmitQueue(Gson gson)
@@ -36,9 +40,9 @@ public class SeasonalSubmitQueue
         this.gson = gson;
     }
 
-    public synchronized int size()
+    public int size()
     {
-        return queue.size();
+        return count;
     }
 
     public synchronized void load()
@@ -63,16 +67,27 @@ public class SeasonalSubmitQueue
                 {
                     continue;
                 }
-                QueuedDrop item = QueuedDrop.fromJson(el.getAsJsonObject());
-                if (item != null && item.screenshotBase64 != null && !item.screenshotBase64.isEmpty())
+                try
                 {
-                    queue.add(item);
+                    QueuedDrop item = QueuedDrop.fromJson(el.getAsJsonObject());
+                    if (item != null && item.screenshotBase64 != null && !item.screenshotBase64.isEmpty())
+                    {
+                        queue.add(item);
+                    }
+                }
+                catch (Exception e)
+                {
+                    log.warn("Skipping unreadable queued drop: {}", e.getMessage());
                 }
             }
         }
         catch (Exception e)
         {
             log.warn("Failed to load submit queue: {}", e.getMessage());
+        }
+        finally
+        {
+            count = queue.size();
         }
     }
 
@@ -93,6 +108,7 @@ public class SeasonalSubmitQueue
         {
             queue.remove(queue.size() - 1);
         }
+        count = queue.size();
         save();
     }
 
@@ -104,10 +120,17 @@ public class SeasonalSubmitQueue
     public synchronized void markSuccess(String id)
     {
         queue.removeIf(item -> id.equals(item.id));
+        count = queue.size();
         save();
     }
 
-    public synchronized void markAttempt(String id, String error, boolean retryable)
+    /**
+     * Records a failed attempt. Drops the item when the error is not retryable
+     * or it has been queued longer than {@link #MAX_AGE_MS}.
+     *
+     * @return true if the item was dropped, so the caller can record the failure
+     */
+    public synchronized boolean markAttempt(String id, String error, boolean retryable)
     {
         for (QueuedDrop item : queue)
         {
@@ -115,16 +138,21 @@ public class SeasonalSubmitQueue
             {
                 continue;
             }
+            long now = System.currentTimeMillis();
             item.attempts += 1;
             item.lastError = error == null ? "" : error;
-            item.lastAttemptEpochMs = System.currentTimeMillis();
-            if (!retryable || item.attempts >= MAX_ATTEMPTS)
+            item.lastAttemptEpochMs = now;
+            log.debug("Queued drop {} attempt {} failed: {}", item.id, item.attempts, item.lastError);
+            boolean dropped = !retryable || now - item.createdAtEpochMs > MAX_AGE_MS;
+            if (dropped)
             {
                 queue.remove(item);
+                count = queue.size();
             }
             save();
-            return;
+            return dropped;
         }
+        return false;
     }
 
     private synchronized void save()
@@ -140,7 +168,7 @@ public class SeasonalSubmitQueue
                 arr.add(item.toJson());
             }
             root.add("items", arr);
-            Files.writeString(queuePath(), gson.toJson(root), StandardCharsets.UTF_8);
+            SeasonalDropHistoryStore.writeAtomically(queuePath(), gson.toJson(root));
         }
         catch (Exception e)
         {
@@ -179,6 +207,8 @@ public class SeasonalSubmitQueue
         String time = "";
         String droppedAt = "";
         String screenshotBase64 = "";
+        /** History record to update when this retry finally succeeds or is dropped. */
+        String historyId = "";
         int attempts;
         String lastError = "";
         long createdAtEpochMs = System.currentTimeMillis();
@@ -245,6 +275,7 @@ public class SeasonalSubmitQueue
             obj.addProperty("time", time);
             obj.addProperty("droppedAt", droppedAt);
             obj.addProperty("screenshotBase64", screenshotBase64);
+            obj.addProperty("historyId", historyId);
             obj.addProperty("attempts", attempts);
             obj.addProperty("lastError", lastError);
             obj.addProperty("createdAtEpochMs", createdAtEpochMs);
@@ -259,25 +290,32 @@ public class SeasonalSubmitQueue
             item.rsn = text(obj, "rsn");
             item.clan = text(obj, "clan");
             item.boss = text(obj, "boss");
-            item.itemId = obj.has("itemId") ? obj.get("itemId").getAsInt() : 0;
+            item.itemId = primitive(obj, "itemId") ? obj.get("itemId").getAsInt() : 0;
             item.itemName = text(obj, "itemName");
-            item.quantity = obj.has("quantity") ? obj.get("quantity").getAsInt() : 1;
+            item.quantity = primitive(obj, "quantity") ? obj.get("quantity").getAsInt() : 1;
             item.eventId = text(obj, "eventId");
             item.eventPassphrase = text(obj, "eventPassphrase");
             item.date = text(obj, "date");
             item.time = text(obj, "time");
             item.droppedAt = text(obj, "droppedAt");
             item.screenshotBase64 = text(obj, "screenshotBase64");
-            item.attempts = obj.has("attempts") ? obj.get("attempts").getAsInt() : 0;
+            item.historyId = text(obj, "historyId");
+            item.attempts = primitive(obj, "attempts") ? obj.get("attempts").getAsInt() : 0;
             item.lastError = text(obj, "lastError");
-            item.createdAtEpochMs = obj.has("createdAtEpochMs") ? obj.get("createdAtEpochMs").getAsLong() : 0L;
-            item.lastAttemptEpochMs = obj.has("lastAttemptEpochMs") ? obj.get("lastAttemptEpochMs").getAsLong() : 0L;
+            item.createdAtEpochMs = primitive(obj, "createdAtEpochMs")
+                ? obj.get("createdAtEpochMs").getAsLong() : System.currentTimeMillis();
+            item.lastAttemptEpochMs = primitive(obj, "lastAttemptEpochMs") ? obj.get("lastAttemptEpochMs").getAsLong() : 0L;
             return item;
+        }
+
+        private static boolean primitive(JsonObject obj, String key)
+        {
+            return obj != null && obj.has(key) && obj.get(key).isJsonPrimitive();
         }
 
         private static String text(JsonObject obj, String key)
         {
-            if (obj == null || !obj.has(key) || obj.get(key).isJsonNull())
+            if (!primitive(obj, key))
             {
                 return "";
             }

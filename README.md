@@ -10,6 +10,7 @@ A RuneLite plugin for **Iron Forged** clan events: live calendar from `api.ironf
 - **Side panel timeline** — Day-grouped events with live / today / future / past color tones
 - **Seasonal Event Passphrase** — Optional on-screen passphrase (and optional local date/time), movable and resizable. Prefers the API value; config is fallback. Same value authenticates drop submits.
 - **Notable drop submit** — Opt-in: only catalog-listed boss/item drops are screenshotted and sent to `POST /plugins/seasonal/drops` with **Seasonal Event ID** + **Seasonal Event Passphrase** (common loot never uploads)
+- **Event teams** — Paste RSNs per team in the Seasonal tab, or opt in to **Sync team roster from API** (`GET /plugins/seasonal/teams`). Rostered players get their team's clan icon in chat, PMs, broadcasts, friends list, clan list and overhead (overhead icons are hidden in the Wilderness and on PvP worlds)
 - **Local times** — API timestamps are UTC and shown in your local timezone
 
 ---
@@ -49,8 +50,10 @@ Under **Seasonal Drop Submit**:
 - The plugin loads the notable catalog from `GET /plugins/seasonal` and ignores every other drop locally
 - Each submit includes **Seasonal Event ID** + **Seasonal Event Passphrase**
 - Optional **Dry run** matches notables without uploading
-- Panel shows the **allowed drops** list once submit is enabled, with **Refresh list** and **Test submit**
-- Settings also has **Test submit drop now** (posts the first allowed catalog entry)
+- Raid, Barrows, Gauntlet and other chest drops are only seen when RuneLite's **Loot Tracker** plugin is enabled
+- Failed uploads are queued on disk and retried every minute for up to 24 hours
+- The Seasonal tab has **View allowed drops** and your recent submits
+- The Debug tab has **Refresh catalog** and **Test submit** (posts the first allowed catalog entry to the dev API, `dev-api.ironforged.gg`, never prod)
 
 ---
 

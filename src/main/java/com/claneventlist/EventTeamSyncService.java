@@ -39,6 +39,8 @@ public class EventTeamSyncService
     private volatile long lastFetchTime;
     private volatile String lastStatus = "Team sync idle";
     private volatile String lastError = "";
+    /** True while applyTeams writes config; the plugin skips per-key team handling meanwhile. */
+    private volatile boolean applying;
 
     @Inject
     EventTeamSyncService(
@@ -64,6 +66,19 @@ public class EventTeamSyncService
     public String getLastError()
     {
         return lastError;
+    }
+
+    public boolean isApplying()
+    {
+        return applying;
+    }
+
+    /** Forget the last fetch so a restarted plugin syncs immediately. */
+    public void reset()
+    {
+        lastFetchTime = 0;
+        lastStatus = "Team sync idle";
+        lastError = "";
     }
 
     public boolean needsRefresh(int intervalMinutes)
@@ -170,7 +185,16 @@ public class EventTeamSyncService
                 return false;
             }
 
-            int applied = applyTeams(syncedTeams);
+            int applied;
+            applying = true;
+            try
+            {
+                applied = applyTeams(syncedTeams);
+            }
+            finally
+            {
+                applying = false;
+            }
             if (applied == 0)
             {
                 lastError = "no usable slots";
@@ -367,7 +391,7 @@ public class EventTeamSyncService
 
     private static String text(JsonObject obj, String key)
     {
-        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull())
+        if (obj == null || !obj.has(key) || !obj.get(key).isJsonPrimitive())
         {
             return "";
         }

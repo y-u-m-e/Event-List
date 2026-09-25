@@ -11,6 +11,7 @@ import net.runelite.api.events.FriendsChatChanged;
 import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.api.events.FriendsChatMemberLeft;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.client.config.ConfigManager;
@@ -22,6 +23,7 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
@@ -33,6 +35,9 @@ import java.awt.image.BufferedImage;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Ironforged Clan Events: events side panel, seasonal drop submit, passphrase overlay and event team badges.
+ */
 @Slf4j
 @PluginDescriptor(
     name = "Ironforged Clan Events",
@@ -151,6 +156,8 @@ public class EventListPlugin extends Plugin
         overlayManager.remove(eventTeamOverlay);
         clientToolbar.removeNavigation(navButton);
         seasonalCatalogService.clear();
+        eventsApiService.clearEvents();
+        eventTeamSyncService.reset();
         seasonalDropSubmitService.setStatusListener(null);
         eventTeamService.stop();
 
@@ -194,6 +201,18 @@ public class EventListPlugin extends Plugin
     public void onPlayerLootReceived(PlayerLootReceived event)
     {
         seasonalDropSubmitService.onPlayerLootReceived(event);
+    }
+
+    @Subscribe
+    public void onLootReceived(LootReceived event)
+    {
+        seasonalDropSubmitService.onLootReceived(event);
+    }
+
+    @Subscribe
+    public void onGameTick(GameTick event)
+    {
+        eventTeamService.onGameTick();
     }
 
     @Subscribe
@@ -277,22 +296,35 @@ public class EventListPlugin extends Plugin
         }
 
         String key = event.getKey();
-        if (key != null && (key.startsWith("team")
+        if (key == null)
+        {
+            return;
+        }
+        if (key.startsWith("team") && eventTeamSyncService.isApplying())
+        {
+            // Roster sync writes up to ~31 team* keys at once; syncTeams() rebuilds once afterwards.
+            return;
+        }
+
+        if (key.startsWith("team")
             || key.equals("enableTeamIcons")
             || key.equals("enableTeamRosterSync")
-            || key.equals("teamCount")
             || key.equals("nameplateTeamIcons")
             || key.equals("friendsListTeamIcons")
             || key.equals("clanListTeamIcons")
-            || key.equals("broadcastTeamIcons")))
+            || key.equals("broadcastTeamIcons"))
         {
             eventTeamService.onConfigChanged(key);
             if (panel != null)
             {
-                if ("teamCount".equals(key) || (key != null && key.startsWith("team") && key.endsWith("Names"))
-                    || (key != null && key.startsWith("team") && key.endsWith("Label")))
+                if ("teamCount".equals(key) || (key.startsWith("team") && key.endsWith("Label")))
                 {
                     panel.rebuildTeamsUi();
+                }
+                else if (key.startsWith("team") && key.endsWith("Names"))
+                {
+                    // Usually typed in the panel itself: rebuilding would destroy the focused text area.
+                    panel.refreshTeamNames();
                 }
                 else
                 {
@@ -306,7 +338,7 @@ public class EventListPlugin extends Plugin
             }
         }
 
-        if (event.getKey().equals("enableEventsFeed") || event.getKey().equals("useDevApi"))
+        if (key.equals("enableEventsFeed") || key.equals("useDevApi"))
         {
             refreshEvents();
             if (config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
@@ -319,8 +351,8 @@ public class EventListPlugin extends Plugin
             }
         }
 
-        if (event.getKey().equals("enableSeasonalSubmit")
-            || event.getKey().equals("showSeasonalEventPassphrase"))
+        if (key.equals("enableSeasonalSubmit")
+            || key.equals("showSeasonalEventPassphrase"))
         {
             if (config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
             {
@@ -339,12 +371,18 @@ public class EventListPlugin extends Plugin
             }
         }
 
-        if (event.getKey().equals("showPastEvents") || event.getKey().equals("maxEventsShown"))
+        if (key.equals("showPastEvents") || key.equals("maxEventsShown"))
         {
             if (panel != null)
             {
                 panel.updateEvents();
             }
+        }
+
+        // Dry run / event id / passphrase overrides show in the Seasonal and Debug tabs.
+        if (key.startsWith("seasonal") && panel != null)
+        {
+            panel.updateSeasonalSection();
         }
     }
 
@@ -377,6 +415,7 @@ public class EventListPlugin extends Plugin
             seasonalDropSubmitService.processQueue();
         }
 
+        // Team sync deliberately reuses the catalog interval rather than adding another setting.
         if (config.enableTeamRosterSync()
             && eventTeamSyncService.needsRefresh(config.seasonalCatalogRefreshInterval()))
         {
@@ -436,6 +475,10 @@ public class EventListPlugin extends Plugin
         });
     }
 
+    /**
+     * Fetches GET /plugins/seasonal. Needed by submit (the allowlist) and also by the
+     * passphrase overlay, since the server-published passphrase comes from the same payload.
+     */
     public void refreshSeasonalCatalog()
     {
         if (!initialized)
@@ -453,10 +496,9 @@ public class EventListPlugin extends Plugin
             {
                 seasonalCatalogService.refresh();
                 log.debug(
-                    "Seasonal catalog: {} entries id={} key={}",
+                    "Seasonal catalog: {} entries id={}",
                     seasonalCatalogService.catalogSize(),
-                    seasonalCatalogService.getEventId(),
-                    seasonalCatalogService.getEventPassphrase()
+                    seasonalCatalogService.getEventId()
                 );
             }
             catch (Exception e)
@@ -483,6 +525,11 @@ public class EventListPlugin extends Plugin
         executorService.submit(() ->
         {
             boolean updated = eventTeamSyncService.syncNow();
+            if (updated)
+            {
+                // Per-key handling was skipped while applying; rebuild the roster once.
+                eventTeamService.refreshSurfaces();
+            }
             if (panel != null)
             {
                 if (updated)

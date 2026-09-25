@@ -9,12 +9,14 @@ import net.runelite.api.FriendsChatMember;
 import net.runelite.api.GameState;
 import net.runelite.api.MessageNode;
 import net.runelite.api.ScriptID;
+import net.runelite.api.WorldType;
 import net.runelite.api.clan.ClanChannel;
 import net.runelite.api.clan.ClanChannelMember;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -77,16 +79,30 @@ public class EventTeamService
     private final ConfigManager configManager;
     private final EventListConfig config;
 
+    // Static because ChatIconManager has no unregister: a plugin restart in the same JVM
+    // must reuse the ids it already registered instead of leaking new icon slots.
     /** Chat / overhead icons (11×11). */
     private static int[] iconIds;
     /** Friends / clan list icons (14×12, Friend Notes size). */
     private static int[] friendsIconIds;
 
-    private final Map<String, Integer> playerTeams = new HashMap<>();
+    /** Rebuilt off the client thread and swapped in whole; the client thread only reads it. */
+    private volatile Map<String, Integer> playerTeams = Collections.emptyMap();
+    /** Palette per team slot (index = team number), so overlays/chat don't parse config per frame. */
+    private volatile EventTeamIconFactory.TeamPalette[] teamPalettes = new EventTeamIconFactory.TeamPalette[0];
     private final BufferedImage[] badgeImages = new BufferedImage[EventTeamIconFactory.PALETTE_SIZE];
     private volatile List<String> conflicts = Collections.emptyList();
+    /**
+     * friendsChatSetText and friendsChatSetPosition fire back-to-back for the same row;
+     * this carries "we added an icon to this row" from the first to the second.
+     */
     private Integer currentlyLayoutingTeam;
     private volatile boolean active;
+    /**
+     * Overhead badges are hidden in the Wilderness / on PvP worlds so they cannot work as
+     * PvP clan-opponent identification (a Plugin Hub restriction). Updated once per tick.
+     */
+    private volatile boolean inPvpArea;
 
     @Inject
     EventTeamService(
@@ -114,7 +130,7 @@ public class EventTeamService
     public void stop()
     {
         active = false;
-        playerTeams.clear();
+        playerTeams = Collections.emptyMap();
         conflicts = Collections.emptyList();
         clientThread.invokeLater(this::retagChatHistory);
         rebuildFriendsList();
@@ -132,6 +148,17 @@ public class EventTeamService
         clientThread.invokeLater(this::retagChatHistory);
     }
 
+    public void onGameTick()
+    {
+        inPvpArea = WorldType.isPvpWorld(client.getWorldType())
+            || client.getVarbitValue(VarbitID.INSIDE_WILDERNESS) == 1;
+    }
+
+    public boolean isInPvpArea()
+    {
+        return inPvpArea;
+    }
+
     public boolean hasRoster()
     {
         return !playerTeams.isEmpty();
@@ -144,7 +171,7 @@ public class EventTeamService
 
     public BufferedImage badgeImage(int team)
     {
-        EventTeamIconFactory.TeamPalette palette = teamPalette(team);
+        EventTeamIconFactory.TeamPalette palette = cachedTeamPalette(team);
         return badgeImages[palette.ordinal()];
     }
 
@@ -193,6 +220,22 @@ public class EventTeamService
         return EventTeamIconFactory.defaultPalette(team);
     }
 
+    private EventTeamIconFactory.TeamPalette cachedTeamPalette(int team)
+    {
+        EventTeamIconFactory.TeamPalette[] cached = teamPalettes;
+        return team > 0 && team < cached.length ? cached[team] : teamPalette(team);
+    }
+
+    private void rebuildTeamPalettes()
+    {
+        EventTeamIconFactory.TeamPalette[] next = new EventTeamIconFactory.TeamPalette[MAX_TEAMS + 1];
+        for (int team = 1; team <= MAX_TEAMS; team++)
+        {
+            next[team] = teamPalette(team);
+        }
+        teamPalettes = next;
+    }
+
     private void saveTeamPalette(int team, EventTeamIconFactory.TeamPalette palette)
     {
         EventTeamIconFactory.TeamPalette p = palette == null
@@ -223,7 +266,7 @@ public class EventTeamService
         {
             return -1;
         }
-        return chatIconManager.chatIconIndex(iconIds[teamPalette(team).ordinal()]);
+        return chatIconManager.chatIconIndex(iconIds[cachedTeamPalette(team).ordinal()]);
     }
 
     private int friendsIconIndexForTeam(int team)
@@ -232,7 +275,7 @@ public class EventTeamService
         {
             return -1;
         }
-        return chatIconManager.chatIconIndex(friendsIconIds[teamPalette(team).ordinal()]);
+        return chatIconManager.chatIconIndex(friendsIconIds[cachedTeamPalette(team).ordinal()]);
     }
 
     public void onConfigChanged(String key)
@@ -244,6 +287,7 @@ public class EventTeamService
         if (key != null && key.endsWith("Color"))
         {
             // Palette icons are fixed assets; only retag so teams pick up the new color key.
+            rebuildTeamPalettes();
             clientThread.invokeLater(this::retagChatHistory);
             rebuildFriendsList();
             rebuildClanLists();
@@ -282,6 +326,7 @@ public class EventTeamService
         {
             case "friendsChatSetText":
             {
+                // Script callback args: the RSN being drawn is the top of the object stack.
                 Object[] objectStack = client.getObjectStack();
                 int objectStackSize = client.getObjectStackSize();
                 String rsn = (String) objectStack[objectStackSize - 1];
@@ -307,6 +352,7 @@ public class EventTeamService
                 }
                 int[] intStack = client.getIntStack();
                 int intStackSize = client.getIntStackSize();
+                // Fourth int from the top is the row's x offset; shift it past our icon.
                 intStack[intStackSize - 4] += EventTeamIconFactory.FRIENDS_ICON_WIDTH + 1;
                 break;
             }
@@ -363,7 +409,8 @@ public class EventTeamService
             }
 
             Map<Integer, Integer> onlineByTeam = new HashMap<>();
-            for (Map.Entry<String, Integer> entry : playerTeams.entrySet())
+            Map<String, Integer> roster = playerTeams;
+            for (Map.Entry<String, Integer> entry : roster.entrySet())
             {
                 if (onlineNames.contains(entry.getKey()))
                 {
@@ -377,10 +424,12 @@ public class EventTeamService
 
     void rebuildPlayerTeams()
     {
-        playerTeams.clear();
+        rebuildTeamPalettes();
+        Map<String, Integer> nextTeams = new HashMap<>();
         List<String> nextConflicts = new ArrayList<>();
         if (!config.enableTeamIcons())
         {
+            playerTeams = Collections.emptyMap();
             conflicts = Collections.emptyList();
             return;
         }
@@ -401,7 +450,7 @@ public class EventTeamService
                 {
                     continue;
                 }
-                Integer existing = playerTeams.putIfAbsent(standardized, team);
+                Integer existing = nextTeams.putIfAbsent(standardized, team);
                 if (existing != null && existing != team)
                 {
                     nextConflicts.add(raw.trim() + " on team " + existing + " and " + team
@@ -409,6 +458,7 @@ public class EventTeamService
                 }
             }
         }
+        playerTeams = Collections.unmodifiableMap(nextTeams);
         conflicts = Collections.unmodifiableList(nextConflicts);
     }
 
@@ -465,15 +515,6 @@ public class EventTeamService
         else
         {
             // Same JVM / plugin reload keeps static icon ids — refresh the bitmaps in place.
-            if (friendsIconIds == null)
-            {
-                friendsIconIds = new int[EventTeamIconFactory.PALETTE_SIZE];
-                for (EventTeamIconFactory.TeamPalette palette : EventTeamIconFactory.TeamPalette.values())
-                {
-                    friendsIconIds[palette.ordinal()] = chatIconManager.registerChatIcon(
-                        EventTeamIconFactory.loadFriendsListBadge(palette));
-                }
-            }
             updateIconImages();
         }
     }

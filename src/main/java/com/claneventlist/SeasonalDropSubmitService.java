@@ -1,5 +1,7 @@
 package com.claneventlist;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -14,7 +16,9 @@ import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.events.PlayerLootReceived;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
+import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.ui.DrawManager;
+import net.runelite.http.api.loottracker.LootRecordType;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -73,6 +77,7 @@ public class SeasonalDropSubmitService
     private final SeasonalDropHistoryStore historyStore;
     private final ChatMessageManager chatMessageManager;
     private final ScheduledExecutorService executorService;
+    private final Gson gson;
 
     private final Set<String> recentDedupe = new LinkedHashSet<>();
 
@@ -92,7 +97,8 @@ public class SeasonalDropSubmitService
         SeasonalSubmitQueue submitQueue,
         SeasonalDropHistoryStore historyStore,
         ChatMessageManager chatMessageManager,
-        ScheduledExecutorService executorService
+        ScheduledExecutorService executorService,
+        Gson gson
     )
     {
         this.config = config;
@@ -106,29 +112,45 @@ public class SeasonalDropSubmitService
         this.historyStore = historyStore;
         this.chatMessageManager = chatMessageManager;
         this.executorService = executorService;
+        this.gson = gson;
     }
 
     public void start()
     {
-        refreshProfileKey();
-        submitQueue.load();
-        historyStore.load();
-        setStatus(submitQueue.size() > 0
-            ? "Seasonal submit ready · " + submitQueue.size() + " queued"
-            : "Seasonal submit idle");
+        String key = profileKey();
+        executorService.execute(() ->
+        {
+            submitQueue.load();
+            if (!historyStore.setProfileKey(key))
+            {
+                historyStore.load();
+            }
+            int queued = submitQueue.size();
+            setStatus(queued > 0
+                ? "Seasonal submit ready · " + queued + " queued"
+                : "Seasonal submit idle");
+        });
     }
 
+    /**
+     * Reads the account hash on the calling (client) thread; the history reload runs on the executor.
+     */
     public void refreshProfileKey()
     {
+        String key = profileKey();
+        executorService.execute(() ->
+        {
+            if (historyStore.setProfileKey(key))
+            {
+                setStatus(lastStatus);
+            }
+        });
+    }
+
+    private String profileKey()
+    {
         long hash = client.getAccountHash();
-        if (hash != -1L && hash != 0L)
-        {
-            historyStore.setProfileKey("rs-" + Long.toUnsignedString(hash));
-        }
-        else
-        {
-            historyStore.setProfileKey("local");
-        }
+        return hash != -1L && hash != 0L ? "rs-" + Long.toUnsignedString(hash) : "local";
     }
 
     public void setStatusListener(Runnable statusListener)
@@ -175,6 +197,20 @@ public class SeasonalDropSubmitService
         handleLoot(bossName, event.getItems());
     }
 
+    /**
+     * Raids, Barrows, Gauntlet and other chests. LootReceived only fires when RuneLite's
+     * Loot Tracker plugin is enabled. NPC/PLAYER types are skipped: those already arrive
+     * via NpcLootReceived / PlayerLootReceived.
+     */
+    public void onLootReceived(LootReceived event)
+    {
+        if (event.getType() != LootRecordType.EVENT)
+        {
+            return;
+        }
+        handleLoot(event.getName(), event.getItems());
+    }
+
     private void handleLoot(String sourceName, Collection<ItemStack> items)
     {
         if (!config.enableSeasonalSubmit() || items == null || items.isEmpty())
@@ -212,6 +248,8 @@ public class SeasonalDropSubmitService
             setStatus("Seasonal submit: could not read RSN");
             return;
         }
+        // Read here on the client thread; the upload runs on the executor.
+        String clan = localClanName();
 
         List<PendingDrop> matches = new ArrayList<>();
         for (ItemStack stack : items)
@@ -226,6 +264,8 @@ public class SeasonalDropSubmitService
             {
                 continue;
             }
+            // Tick is part of the key so two identical drops on different kills both count,
+            // while the same stack reported twice in one tick (e.g. duplicate loot events) does not.
             String dedupeKey = client.getAccountHash() + ":" + client.getWorld() + ":"
                 + client.getTickCount() + ":" + stack.getId() + ":" + stack.getQuantity();
             if (!rememberDedupe(dedupeKey))
@@ -249,14 +289,34 @@ public class SeasonalDropSubmitService
             return;
         }
 
-        captureScreenshotAndSubmit(rsn, eventId, eventPassphrase, matches, false);
+        captureScreenshotAndSubmit(rsn, clan, eventId, eventPassphrase, matches, false);
     }
 
+    /**
+     * Posts the first catalog entry to the dev API. Reads RSN / clan on the client thread first.
+     */
     public void submitTestDrop()
+    {
+        clientThread.invoke(() ->
+        {
+            String rsn = localRsn();
+            String clan = localClanName();
+            executorService.execute(() -> submitTestDrop(rsn.isEmpty() ? "TestPlayer" : rsn, clan));
+        });
+    }
+
+    private void submitTestDrop(String rsn, String clan)
     {
         if (!config.enableSeasonalSubmit())
         {
             setStatus("Test submit: enable Submit notable seasonal drops first");
+            return;
+        }
+        // The catalog, event ID and passphrase come from the configured API; they only
+        // match the dev API the test posts to when Use dev API is on.
+        if (!config.useDevApi())
+        {
+            setStatus("Test submit: turn on Use dev API first (tests only go to dev)");
             return;
         }
 
@@ -280,11 +340,6 @@ public class SeasonalDropSubmitService
 
         List<SeasonalCatalogEntry> catalog = catalogService.getCatalog();
         SeasonalCatalogEntry entry = catalog.get(0);
-        String rsn = localRsn();
-        if (rsn.isEmpty())
-        {
-            rsn = "TestPlayer";
-        }
 
         if (config.seasonalSubmitDryRun())
         {
@@ -296,7 +351,7 @@ public class SeasonalDropSubmitService
         setStatus("Test submit: capturing screenshot for " + entry.getBoss() + " / " + entry.getItem());
         List<PendingDrop> drops = new ArrayList<>();
         drops.add(new PendingDrop(entry, 0, 1));
-        captureScreenshotAndSubmit(rsn, eventId, eventPassphrase, drops, true);
+        captureScreenshotAndSubmit(rsn, clan, eventId, eventPassphrase, drops, true);
     }
 
     public void processQueue()
@@ -334,13 +389,16 @@ public class SeasonalDropSubmitService
                     }
                     else
                     {
-                        submitQueue.markAttempt(item.id, result.message, result.retryable);
-                        if (!result.retryable)
+                        boolean dropped = submitQueue.markAttempt(item.id, result.message, result.retryable);
+                        if (dropped)
                         {
-                            recordHistory(item, "failed", result.message);
-                            notifyGameDrop("Failed", item.boss, item.itemName, truncate(result.message, 60));
+                            String reason = result.retryable
+                                ? "Gave up after 24h: " + truncate(result.message, 80)
+                                : result.message;
+                            recordHistory(item, "failed", reason);
+                            notifyGameDrop("Failed", item.boss, item.itemName, truncate(reason, 60));
                         }
-                        setStatus("Retry " + (result.retryable ? "scheduled" : "gave up")
+                        setStatus("Retry " + (dropped ? "gave up" : "scheduled")
                             + ": " + truncate(result.message, 80)
                             + " · queue " + submitQueue.size());
                     }
@@ -354,19 +412,27 @@ public class SeasonalDropSubmitService
         });
     }
 
+    /**
+     * Client thread registers the frame listener; the listener copies the frame on the
+     * render thread (the image is only valid there); scaling, JPEG encode and upload run
+     * on the executor.
+     *
+     * @param test test submit: allows a placeholder image, always targets the dev API, never queues
+     */
     private void captureScreenshotAndSubmit(
         String rsn,
+        String clan,
         String eventId,
         String eventPassphrase,
         List<PendingDrop> drops,
-        boolean allowTinyFallback
+        boolean test
     )
     {
         setStatus("Seasonal submit: queued (capture next frame)");
         clientThread.invoke(() -> drawManager.requestNextFrameListener(image ->
         {
             BufferedImage copy = copyImage(image);
-            if (copy == null && allowTinyFallback)
+            if (copy == null && test)
             {
                 copy = tinyImage();
             }
@@ -380,7 +446,7 @@ public class SeasonalDropSubmitService
             executorService.submit(() ->
             {
                 byte[] jpeg = encodeJpeg(scaleForUpload(frame));
-                if ((jpeg == null || jpeg.length == 0) && allowTinyFallback)
+                if ((jpeg == null || jpeg.length == 0) && test)
                 {
                     jpeg = encodeJpeg(tinyImage());
                 }
@@ -393,7 +459,7 @@ public class SeasonalDropSubmitService
                 setStatus("Seasonal submit: uploading (" + jpeg.length + " bytes)");
                 for (PendingDrop drop : drops)
                 {
-                    postDrop(rsn, eventId, eventPassphrase, drop, jpeg);
+                    postDrop(rsn, clan, eventId, eventPassphrase, drop, jpeg, test);
                 }
             });
         }));
@@ -401,24 +467,25 @@ public class SeasonalDropSubmitService
 
     private void postDrop(
         String rsn,
+        String clan,
         String eventId,
         String eventPassphrase,
         PendingDrop drop,
-        byte[] screenshotBytes
+        byte[] screenshotBytes,
+        boolean test
     )
     {
         LocalDateTime now = LocalDateTime.now();
         String date = LocalDate.now().format(DATE_FMT);
         String time = LocalTime.now().format(TIME_FMT);
         String droppedAt = now.toString();
-        String clan = localClanName();
         String boss = drop.entry.getBoss();
         String itemName = drop.entry.getItem();
         int itemId = drop.itemId;
 
         UploadResult result = upload(
             rsn, clan, boss, itemId, itemName, drop.quantity,
-            eventId, eventPassphrase, date, time, droppedAt, screenshotBytes
+            eventId, eventPassphrase, date, time, droppedAt, screenshotBytes, test
         );
 
         if (result.success)
@@ -435,7 +502,7 @@ public class SeasonalDropSubmitService
             rec.date = date;
             rec.time = time;
             rec.droppedAt = droppedAt;
-            rec.detail = screenshotBytes.length + " bytes";
+            rec.detail = screenshotBytes.length + " bytes" + (test ? " · test (dev API)" : "");
             historyStore.add(rec);
             notifyGameDrop("Submitted", boss, itemName, null);
             setStatus("Submitted: " + boss + " / " + itemName
@@ -443,13 +510,13 @@ public class SeasonalDropSubmitService
             return;
         }
 
-        SeasonalSubmitQueue.QueuedDrop queued = SeasonalSubmitQueue.QueuedDrop.fromPayload(
-            rsn, clan, boss, itemId, itemName, drop.quantity,
-            eventId, eventPassphrase, date, time, droppedAt, screenshotBytes
-        );
-        if (result.retryable)
+        // Test submits never queue: a retry would go to the configured (possibly prod) API.
+        if (result.retryable && !test)
         {
-            submitQueue.enqueue(queued);
+            SeasonalSubmitQueue.QueuedDrop queued = SeasonalSubmitQueue.QueuedDrop.fromPayload(
+                rsn, clan, boss, itemId, itemName, drop.quantity,
+                eventId, eventPassphrase, date, time, droppedAt, screenshotBytes
+            );
             SeasonalDropRecord rec = new SeasonalDropRecord();
             rec.status = "queued";
             rec.rsn = rsn;
@@ -463,7 +530,8 @@ public class SeasonalDropSubmitService
             rec.time = time;
             rec.droppedAt = droppedAt;
             rec.detail = "Queued: " + truncate(result.message, 80);
-            historyStore.add(rec);
+            queued.historyId = historyStore.add(rec).id;
+            submitQueue.enqueue(queued);
             notifyGameDrop("Queued", boss, itemName, null);
             setStatus("Queued for retry: " + truncate(result.message, 100)
                 + " · queue " + submitQueue.size());
@@ -494,7 +562,7 @@ public class SeasonalDropSubmitService
         return upload(
             item.rsn, item.clan, item.boss, item.itemId, item.itemName, item.quantity,
             item.eventId, item.eventPassphrase, item.date, item.time, item.droppedAt,
-            item.screenshotBytes()
+            item.screenshotBytes(), false
         );
     }
 
@@ -510,7 +578,8 @@ public class SeasonalDropSubmitService
         String date,
         String time,
         String droppedAt,
-        byte[] screenshotBytes
+        byte[] screenshotBytes,
+        boolean test
     )
     {
         if (screenshotBytes == null || screenshotBytes.length == 0)
@@ -518,25 +587,28 @@ public class SeasonalDropSubmitService
             return UploadResult.fatal("missing screenshot bytes");
         }
 
-        String dataJson = "{"
-            + "\"rsn\":" + jsonString(rsn) + ","
-            + "\"clan\":" + jsonString(clan) + ","
-            + "\"boss\":" + jsonString(boss) + ","
-            + "\"item_id\":" + itemId + ","
-            + "\"item_name\":" + jsonString(itemName) + ","
-            + "\"date\":" + jsonString(date) + ","
-            + "\"time\":" + jsonString(time) + ","
-            + "\"dropped_at\":" + jsonString(droppedAt) + ","
-            + "\"event_id\":" + jsonString(eventId) + ","
-            + "\"event_passphrase\":" + jsonString(eventPassphrase) + ","
-            + "\"seasonal_event_id\":" + jsonString(eventId) + ","
-            + "\"seasonal_event_passphrase\":" + jsonString(eventPassphrase) + ","
-            + "\"quantity\":" + quantity + ","
-            + "\"screenshot\":true"
-            + "}";
+        JsonObject data = new JsonObject();
+        data.addProperty("rsn", nullToEmpty(rsn));
+        data.addProperty("clan", nullToEmpty(clan));
+        data.addProperty("boss", nullToEmpty(boss));
+        data.addProperty("item_id", itemId);
+        data.addProperty("item_name", nullToEmpty(itemName));
+        data.addProperty("date", nullToEmpty(date));
+        data.addProperty("time", nullToEmpty(time));
+        data.addProperty("dropped_at", nullToEmpty(droppedAt));
+        data.addProperty("event_id", nullToEmpty(eventId));
+        data.addProperty("event_passphrase", nullToEmpty(eventPassphrase));
+        data.addProperty("seasonal_event_id", nullToEmpty(eventId));
+        data.addProperty("seasonal_event_passphrase", nullToEmpty(eventPassphrase));
+        data.addProperty("quantity", quantity);
+        data.addProperty("screenshot", true);
+        if (test)
+        {
+            data.addProperty("test", true);
+        }
 
         RequestBody fileBody = RequestBody.create(JPEG, screenshotBytes);
-        RequestBody body = new MultipartBody.Builder()
+        MultipartBody.Builder form = new MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("rsn", nullToEmpty(rsn))
             .addFormDataPart("clan", nullToEmpty(clan))
@@ -553,12 +625,18 @@ public class SeasonalDropSubmitService
             .addFormDataPart("seasonal_event_passphrase", nullToEmpty(eventPassphrase))
             .addFormDataPart("passphrase", nullToEmpty(eventPassphrase))
             .addFormDataPart("client", CLIENT_ID)
-            .addFormDataPart("data", dataJson)
-            .addFormDataPart("screenshot", "drop.jpg", fileBody)
-            .build();
+            .addFormDataPart("data", gson.toJson(data))
+            .addFormDataPart("screenshot", "drop.jpg", fileBody);
+        if (test)
+        {
+            form.addFormDataPart("test", "true");
+        }
+        RequestBody body = form.build();
 
+        // Test submits always go to dev, whatever the Use dev API toggle says.
+        String apiBase = test ? EventsApiService.DEV_API_BASE : EventsApiService.resolveApiBase(config);
         Request request = new Request.Builder()
-            .url(EventsApiService.resolveApiBase(config) + "/plugins/seasonal/drops")
+            .url(apiBase + "/plugins/seasonal/drops")
             .header("User-Agent", "RuneLite-IronforgedClanEvents")
             .header("X-Event-Passphrase", nullToEmpty(eventPassphrase))
             .header("X-Seasonal-Event-Passphrase", nullToEmpty(eventPassphrase))
@@ -597,7 +675,11 @@ public class SeasonalDropSubmitService
         rec.time = item.time;
         rec.droppedAt = item.droppedAt;
         rec.detail = detail == null ? "" : detail;
-        historyStore.add(rec);
+        // Prefer updating the "queued" row written when the drop was first queued.
+        if (!historyStore.update(item.historyId, rec.status, rec.detail))
+        {
+            historyStore.add(rec);
+        }
     }
 
     private void notifyGameDrop(String action, String boss, String itemName, String detail)
@@ -637,18 +719,6 @@ public class SeasonalDropSubmitService
     private static String nullToEmpty(String value)
     {
         return value == null ? "" : value;
-    }
-
-    private static String jsonString(String value)
-    {
-        if (value == null)
-        {
-            return "\"\"";
-        }
-        return "\"" + value
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            + "\"";
     }
 
     private synchronized boolean rememberDedupe(String key)

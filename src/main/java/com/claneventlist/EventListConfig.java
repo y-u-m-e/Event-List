@@ -8,6 +8,9 @@ import net.runelite.client.config.Range;
 
 import java.awt.Color;
 
+/**
+ * Plugin settings: events feed, seasonal drop submit, passphrase overlay and event teams.
+ */
 @ConfigGroup(EventListConfig.CONFIG_GROUP)
 public interface EventListConfig extends Config
 {
@@ -133,7 +136,8 @@ public interface EventListConfig extends Config
     @ConfigItem(
         keyName = "showSeasonalEventPassphrase",
         name = "Show Seasonal Event Passphrase",
-        description = "Draw the Seasonal Event Passphrase on the game screen (drag to reposition)",
+        description = "Draw the Seasonal Event Passphrase on the game screen (drag to reposition). Fetches the passphrase from api.ironforged.gg",
+        warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
         section = seasonalEventPassphraseSection,
         position = 0
     )

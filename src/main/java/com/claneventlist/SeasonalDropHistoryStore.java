@@ -9,9 +9,12 @@ import net.runelite.client.RuneLite;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,15 +40,21 @@ public class SeasonalDropHistoryStore
         this.gson = gson;
     }
 
-    public synchronized void setProfileKey(String key)
+    /**
+     * Switches profile and reloads from disk. Does disk IO — call off the client thread.
+     *
+     * @return true if the key changed and history was reloaded
+     */
+    public synchronized boolean setProfileKey(String key)
     {
         String next = key == null || key.trim().isEmpty() ? "local" : sanitize(key.trim());
-        if (next.equals(profileKey) && !records.isEmpty())
+        if (next.equals(profileKey))
         {
-            return;
+            return false;
         }
         profileKey = next;
         load();
+        return true;
     }
 
     public String getProfileKey()
@@ -79,6 +88,30 @@ public class SeasonalDropHistoryStore
         }
         save();
         return record;
+    }
+
+    /**
+     * Updates status/detail of an existing record in place.
+     *
+     * @return false if no record has that id (e.g. profile switched since it was added)
+     */
+    public synchronized boolean update(String id, String status, String detail)
+    {
+        if (id == null || id.isEmpty())
+        {
+            return false;
+        }
+        for (SeasonalDropRecord rec : records)
+        {
+            if (id.equals(rec.id))
+            {
+                rec.status = status;
+                rec.detail = detail;
+                save();
+                return true;
+            }
+        }
+        return false;
     }
 
     public synchronized void load()
@@ -132,11 +165,29 @@ public class SeasonalDropHistoryStore
                 arr.add(toJson(rec));
             }
             root.add("records", arr);
-            Files.writeString(historyPath(), gson.toJson(root), StandardCharsets.UTF_8);
+            writeAtomically(historyPath(), gson.toJson(root));
         }
         catch (Exception e)
         {
             log.warn("Failed to save drop history: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Writes a sibling .tmp then moves it over the target, so a crash mid-write
+     * never leaves a truncated file.
+     */
+    static void writeAtomically(Path target, String content) throws IOException
+    {
+        Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
+        Files.writeString(tmp, content, StandardCharsets.UTF_8);
+        try
+        {
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (AtomicMoveNotSupportedException e)
+        {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

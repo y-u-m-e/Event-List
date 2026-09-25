@@ -12,7 +12,8 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * Movable overlay that draws the Seasonal Event Passphrase
- * (API value when published, else config).
+ * (API value when published, else config). It exists so the passphrase is
+ * burned into submitted drop screenshots as proof they were taken during the event.
  */
 public class SeasonalEventPassphraseOverlay extends OverlayPanel
 {
@@ -74,19 +75,11 @@ public class SeasonalEventPassphraseOverlay extends OverlayPanel
 
         setMinimumSize(contentHeight);
 
-        Dimension preferred = getPreferredSize();
-        if (preferred == null)
+        // The overlay's preferredSize is only set when the user drags to resize (and cleared
+        // by "Reset"); OverlayPanel then applies it. Otherwise size to the current content.
+        if (getPreferredSize() == null)
         {
             panelComponent.setPreferredSize(new Dimension(contentWidth, 0));
-        }
-        else
-        {
-            int width = Math.max(preferred.width, contentWidth);
-            int height = Math.max(preferred.height, contentHeight);
-            if (width != preferred.width || height != preferred.height)
-            {
-                setPreferredSize(new Dimension(width, height));
-            }
         }
 
         return super.render(graphics);
