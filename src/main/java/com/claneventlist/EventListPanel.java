@@ -119,6 +119,7 @@ public class EventListPanel extends PluginPanel
     private JLabel debugStatusLabel;
     private JLabel teamsConflictLabel;
     private JLabel teamsSyncLabel;
+    private JLabel teamsHeaderLabel;
     private JPanel teamsContainer;
     private final Map<Integer, JLabel> teamLabels = new HashMap<>();
     private final Map<Integer, JTextArea> teamAreas = new HashMap<>();
@@ -400,11 +401,41 @@ public class EventListPanel extends PluginPanel
         section.setOpaque(false);
         constrainSeasonalSection(section);
 
-        JLabel heading = new JLabel("Event teams");
-        heading.setFont(FontManager.getRunescapeBoldFont());
-        heading.setForeground(ACCENT_COLOR);
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        section.add(heading);
+        // Collapsed by default (per session): the header carries the team/online summary,
+        // the editing controls live in the body.
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setOpaque(false);
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.setVisible(false);
+
+        JPanel header = new JPanel(new BorderLayout(6, 0));
+        header.setOpaque(false);
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+        header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        teamsHeaderLabel = new JLabel("Event teams");
+        teamsHeaderLabel.setFont(FontManager.getRunescapeBoldFont());
+        teamsHeaderLabel.setForeground(ACCENT_COLOR);
+        header.add(teamsHeaderLabel, BorderLayout.CENTER);
+        JLabel chevron = new JLabel("▸");
+        chevron.setFont(FontManager.getRunescapeSmallFont());
+        chevron.setForeground(MUTED_TEXT);
+        header.add(chevron, BorderLayout.EAST);
+        header.addMouseListener(new MouseAdapter()
+        {
+            @Override
+            public void mouseClicked(MouseEvent e)
+            {
+                boolean open = !body.isVisible();
+                body.setVisible(open);
+                chevron.setText(open ? "▾" : "▸");
+                section.revalidate();
+                section.repaint();
+            }
+        });
+        section.add(header);
+        section.add(body);
 
         JLabel hint = new JLabel("<html>Paste RSNs per team (comma or newline). "
             + "Supports # / // comments. Click the clan icon to cycle colors. "
@@ -414,7 +445,7 @@ public class EventListPanel extends PluginPanel
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         hint.setBorder(new EmptyBorder(4, 0, 6, 0));
         hint.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        section.add(hint);
+        body.add(hint);
 
         JPanel countRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         countRow.setOpaque(false);
@@ -434,7 +465,7 @@ public class EventListPanel extends PluginPanel
             configManager.setConfiguration(EventListConfig.CONFIG_GROUP, "teamCount", value);
         });
         countRow.add(teamCountSpinner);
-        section.add(countRow);
+        body.add(countRow);
 
         JPanel syncRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         syncRow.setOpaque(false);
@@ -446,27 +477,27 @@ public class EventListPanel extends PluginPanel
                 syncTeamsCallback.run();
             }
         }));
-        section.add(syncRow);
+        body.add(syncRow);
 
         teamsSyncLabel = new JLabel(" ");
         teamsSyncLabel.setFont(FontManager.getRunescapeSmallFont());
         teamsSyncLabel.setForeground(SECONDARY_TEXT);
         teamsSyncLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         teamsSyncLabel.setBorder(new EmptyBorder(2, 0, 2, 0));
-        section.add(teamsSyncLabel);
+        body.add(teamsSyncLabel);
 
         teamsConflictLabel = new JLabel(" ");
         teamsConflictLabel.setFont(FontManager.getRunescapeSmallFont());
         teamsConflictLabel.setForeground(new Color(220, 120, 80));
         teamsConflictLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         teamsConflictLabel.setBorder(new EmptyBorder(2, 0, 6, 0));
-        section.add(teamsConflictLabel);
+        body.add(teamsConflictLabel);
 
         teamsContainer = new JPanel();
         teamsContainer.setLayout(new BoxLayout(teamsContainer, BoxLayout.Y_AXIS));
         teamsContainer.setOpaque(false);
         constrainSeasonalSection(teamsContainer);
-        section.add(teamsContainer);
+        body.add(teamsContainer);
 
         return section;
     }
@@ -812,9 +843,14 @@ public class EventListPanel extends PluginPanel
         eventTeamService.computeOnlineCounts(onlineByTeam ->
         {
             int teamCount = Math.min(Math.max(config.teamCount(), 1), EventTeamService.MAX_TEAMS);
+            int onlineTotal = 0;
             for (int team = 1; team <= teamCount; team++)
             {
-                updateTeamLabel(team, onlineByTeam.getOrDefault(team, 0));
+                onlineTotal += updateTeamLabel(team, onlineByTeam.getOrDefault(team, 0));
+            }
+            if (teamsHeaderLabel != null)
+            {
+                teamsHeaderLabel.setText("Event teams · " + teamCount + " teams · " + onlineTotal + " online");
             }
             List<String> conflicts = eventTeamService.getConflicts();
             if (teamsConflictLabel != null)
@@ -981,13 +1017,14 @@ public class EventListPanel extends PluginPanel
         return section;
     }
 
-    private void updateTeamLabel(int team, int online)
+    /** Returns the online count shown (capped at roster size) so the header can total it. */
+    private int updateTeamLabel(int team, int online)
     {
         JLabel label = teamLabels.get(team);
         JTextArea namesArea = teamAreas.get(team);
         if (label == null || namesArea == null)
         {
-            return;
+            return 0;
         }
         int total = EventTeamService.splitNames(namesArea.getText()).size();
         int shownOnline = Math.min(online, total);
@@ -997,6 +1034,7 @@ public class EventListPanel extends PluginPanel
             ? ("Team " + team)
             : labelName.trim();
         label.setText(title + " — " + shownOnline + "/" + total + " online");
+        return shownOnline;
     }
 
     private JButton createTeamColorButton(int team)
