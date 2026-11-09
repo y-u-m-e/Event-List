@@ -2,7 +2,9 @@ package com.claneventlist;
 
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ClanChannelChanged;
 import net.runelite.api.events.ClanMemberJoined;
@@ -14,6 +16,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.ScriptPostFired;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -26,6 +29,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
+import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ScheduledExecutorService;
@@ -74,6 +78,17 @@ public class EventListPlugin extends Plugin
     @Inject
     private ScheduledExecutorService executorService;
 
+    @Inject
+    private Client client;
+
+    @Inject
+    private ClientThread clientThread;
+
+    @Inject
+    private SeasonalViewService seasonalViewService;
+
+    /** Created and disposed on the EDT; read from the scheduler thread only for isVisible(). */
+    private volatile SeasonalBoardWindow boardWindow;
     private SeasonalEventPassphraseOverlay passphraseOverlay;
     private EventListPanel panel;
     private NavigationButton navButton;
@@ -99,7 +114,8 @@ public class EventListPlugin extends Plugin
             eventTeamService,
             eventTeamSyncService,
             this::refreshEvents,
-            this::syncTeams
+            this::syncTeams,
+            this::openSeasonalBoard
         );
 
         BufferedImage icon = loadPluginIcon();
@@ -117,6 +133,7 @@ public class EventListPlugin extends Plugin
         eventTeamService.start();
         refreshEvents();
         refreshSeasonalCatalog();
+        refreshSeasonalView();
     }
 
     @Override
@@ -128,6 +145,8 @@ public class EventListPlugin extends Plugin
         overlayManager.remove(eventTeamOverlay);
         clientToolbar.removeNavigation(navButton);
         seasonalCatalogService.clear();
+        seasonalViewService.clear();
+        disposeBoardWindow();
         eventsApiService.clearEvents();
         eventTeamSyncService.reset();
         eventTeamService.stop();
@@ -157,6 +176,7 @@ public class EventListPlugin extends Plugin
             {
                 refreshSeasonalCatalog();
             }
+            refreshSeasonalView();
         }
     }
 
@@ -299,6 +319,30 @@ public class EventListPlugin extends Plugin
             }
         }
 
+        if (key.equals("showSeasonalEvent") || key.equals("useDevApi"))
+        {
+            if (config.showSeasonalEvent())
+            {
+                if (key.equals("useDevApi"))
+                {
+                    seasonalViewService.clear();
+                }
+                refreshSeasonalView();
+            }
+            else
+            {
+                seasonalViewService.clear();
+                SwingUtilities.invokeLater(() ->
+                {
+                    if (panel != null)
+                    {
+                        panel.updateSeasonalEventCard(null);
+                    }
+                    disposeBoardWindow();
+                });
+            }
+        }
+
         if (key.equals("showSeasonalEventPassphrase"))
         {
             if (config.showSeasonalEventPassphrase())
@@ -342,6 +386,14 @@ public class EventListPlugin extends Plugin
             && seasonalCatalogService.needsRefresh(config.seasonalCatalogRefreshInterval()))
         {
             refreshSeasonalCatalog();
+        }
+
+        SeasonalBoardWindow window = boardWindow;
+        if (config.showSeasonalEvent()
+            && ((window != null && window.isVisible())
+            || seasonalViewService.needsRefresh(config.seasonalCatalogRefreshInterval())))
+        {
+            refreshSeasonalView();
         }
 
         if (config.enableTeamRosterSync()
@@ -414,6 +466,69 @@ public class EventListPlugin extends Plugin
         }
 
         executorService.submit(seasonalCatalogService::refresh);
+    }
+
+    /** Local name is read on the client thread, the fetch runs on the executor, Swing is updated on the EDT. */
+    public void refreshSeasonalView()
+    {
+        if (!initialized || !config.showSeasonalEvent())
+        {
+            return;
+        }
+
+        clientThread.invoke(() ->
+        {
+            Player me = client.getLocalPlayer();
+            String name = me == null ? null : me.getName();
+            if (name == null)
+            {
+                return;
+            }
+            executorService.submit(() ->
+            {
+                seasonalViewService.refresh(name);
+                SwingUtilities.invokeLater(this::applySeasonalView);
+            });
+        });
+    }
+
+    /** EDT. */
+    private void applySeasonalView()
+    {
+        if (!initialized || !config.showSeasonalEvent())
+        {
+            return;
+        }
+        SeasonalView v = seasonalViewService.getView();
+        if (panel != null)
+        {
+            panel.updateSeasonalEventCard(v);
+        }
+        SeasonalBoardWindow window = boardWindow;
+        if (window != null && window.isVisible())
+        {
+            window.setView(v);
+        }
+    }
+
+    /** EDT. */
+    private void openSeasonalBoard()
+    {
+        if (boardWindow == null)
+        {
+            boardWindow = new SeasonalBoardWindow(this::refreshSeasonalView);
+        }
+        boardWindow.showView(seasonalViewService.getView());
+    }
+
+    private void disposeBoardWindow()
+    {
+        SeasonalBoardWindow window = boardWindow;
+        boardWindow = null;
+        if (window != null)
+        {
+            SwingUtilities.invokeLater(window::dispose);
+        }
     }
 
     public void syncTeams()
