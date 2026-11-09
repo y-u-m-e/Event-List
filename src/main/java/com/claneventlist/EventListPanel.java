@@ -2,13 +2,11 @@ package com.claneventlist;
 
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
+import net.runelite.client.util.Text;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -22,6 +20,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -94,29 +93,19 @@ public class EventListPanel extends PluginPanel
 
     private final EventListConfig config;
     private final ConfigManager configManager;
-    private final ItemManager itemManager;
-    private final SpriteManager spriteManager;
     private final EventsApiService eventsApiService;
-    private final SeasonalCatalogService seasonalCatalogService;
-    private final SeasonalDropSubmitService seasonalDropSubmitService;
     private final EventTeamService eventTeamService;
     private final EventTeamSyncService eventTeamSyncService;
     private final Runnable refreshCallback;
-    private final Runnable refreshCatalogCallback;
-    private final Runnable testSubmitCallback;
     private final Runnable syncTeamsCallback;
 
     private JPanel eventsContainer;
     private JScrollPane eventsScrollPane;
     private JScrollPane seasonalScrollPane;
-    private JPanel seasonalSection;
-    private JLabel seasonalStatusLabel;
-    private JLabel seasonalHintLabel;
-    private JButton viewAllowedDropsButton;
-    private JLabel viewAllowedDropsCountLabel;
-    private JPanel historyList;
-    private JLabel historyMetaLabel;
-    private JLabel debugStatusLabel;
+    private JLabel myTeamEventLabel;
+    private JLabel myTeamTitleLabel;
+    private JPanel myTeamMembers;
+    private JLabel myTeamFooterLabel;
     private JLabel teamsConflictLabel;
     private JLabel teamsSyncLabel;
     private JLabel teamsHeaderLabel;
@@ -138,16 +127,10 @@ public class EventListPanel extends PluginPanel
     public EventListPanel(
         EventListConfig config,
         ConfigManager configManager,
-        ItemManager itemManager,
-        SpriteManager spriteManager,
         EventsApiService eventsApiService,
-        SeasonalCatalogService seasonalCatalogService,
-        SeasonalDropSubmitService seasonalDropSubmitService,
         EventTeamService eventTeamService,
         EventTeamSyncService eventTeamSyncService,
         Runnable refreshCallback,
-        Runnable refreshCatalogCallback,
-        Runnable testSubmitCallback,
         Runnable syncTeamsCallback
     )
     {
@@ -155,16 +138,10 @@ public class EventListPanel extends PluginPanel
 
         this.config = config;
         this.configManager = configManager;
-        this.itemManager = itemManager;
-        this.spriteManager = spriteManager;
         this.eventsApiService = eventsApiService;
-        this.seasonalCatalogService = seasonalCatalogService;
-        this.seasonalDropSubmitService = seasonalDropSubmitService;
         this.eventTeamService = eventTeamService;
         this.eventTeamSyncService = eventTeamSyncService;
         this.refreshCallback = refreshCallback;
-        this.refreshCatalogCallback = refreshCatalogCallback;
-        this.testSubmitCallback = testSubmitCallback;
         this.syncTeamsCallback = syncTeamsCallback;
 
         setLayout(new BorderLayout());
@@ -177,12 +154,10 @@ public class EventListPanel extends PluginPanel
         tabs.setForeground(TEXT_COLOR);
         tabs.addTab("Events", createEventsTab());
         tabs.addTab("Seasonal", createSeasonalTab());
-        tabs.addTab("Debug", createDebugTab());
         add(tabs, BorderLayout.CENTER);
         add(createFooterPanel(), BorderLayout.SOUTH);
 
         refreshHealthDot();
-        updateSeasonalSection();
         rebuildTeamsUi();
     }
 
@@ -223,11 +198,9 @@ public class EventListPanel extends PluginPanel
         body.setBorder(new EmptyBorder(8, SIDE_PAD, 8, SIDE_PAD));
         body.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        body.add(createSeasonalStatusCard());
+        body.add(createMyTeamCard());
         body.add(Box.createVerticalStrut(12));
         body.add(createSeasonalTeamsSection());
-        body.add(Box.createVerticalStrut(12));
-        body.add(createSeasonalHistorySection());
 
         seasonalScrollPane = new JScrollPane(new ScrollableWidthPanel(body));
         seasonalScrollPane.setBorder(BorderFactory.createEmptyBorder());
@@ -263,135 +236,164 @@ public class EventListPanel extends PluginPanel
         section.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     }
 
-    private JPanel createSeasonalStatusCard()
+    private JPanel createMyTeamCard()
     {
-        seasonalSection = new JPanel();
-        seasonalSection.setLayout(new BoxLayout(seasonalSection, BoxLayout.Y_AXIS));
-        seasonalSection.setBackground(PANEL_COLOR);
-        seasonalSection.setBorder(new EmptyBorder(8, 8, 8, 8));
-        constrainSeasonalSection(seasonalSection);
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(PANEL_COLOR);
+        card.setBorder(new EmptyBorder(8, 8, 8, 8));
+        constrainSeasonalSection(card);
 
-        JLabel heading = new JLabel("Seasonal event");
+        JLabel heading = new JLabel("Your team");
         heading.setFont(FontManager.getRunescapeBoldFont());
         heading.setForeground(ACCENT_COLOR);
         heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        seasonalSection.add(heading);
+        card.add(heading);
 
-        seasonalStatusLabel = new JLabel(" ");
-        seasonalStatusLabel.setFont(FontManager.getRunescapeSmallFont());
-        seasonalStatusLabel.setForeground(SECONDARY_TEXT);
-        seasonalStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        seasonalStatusLabel.setBorder(new EmptyBorder(4, 0, 4, 0));
-        seasonalSection.add(seasonalStatusLabel);
+        myTeamEventLabel = new JLabel(" ");
+        myTeamEventLabel.setFont(FontManager.getRunescapeSmallFont());
+        myTeamEventLabel.setForeground(MUTED_TEXT);
+        myTeamEventLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.add(myTeamEventLabel);
 
-        seasonalHintLabel = new JLabel("<html>Eligible boss drops are submitted automatically when "
-            + "Seasonal Drop Submit is enabled in plugin config.</html>");
-        seasonalHintLabel.setFont(FontManager.getRunescapeSmallFont());
-        seasonalHintLabel.setForeground(MUTED_TEXT);
-        seasonalHintLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        seasonalHintLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        seasonalSection.add(seasonalHintLabel);
+        myTeamTitleLabel = new JLabel(" ");
+        myTeamTitleLabel.setFont(FontManager.getRunescapeBoldFont());
+        myTeamTitleLabel.setForeground(TEXT_COLOR);
+        myTeamTitleLabel.setIconTextGap(6);
+        myTeamTitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        myTeamTitleLabel.setBorder(new EmptyBorder(6, 0, 4, 0));
+        card.add(myTeamTitleLabel);
 
-        seasonalSection.add(Box.createVerticalStrut(8));
-        seasonalSection.add(createViewAllowedDropsButton());
+        myTeamMembers = new JPanel();
+        myTeamMembers.setLayout(new BoxLayout(myTeamMembers, BoxLayout.Y_AXIS));
+        myTeamMembers.setOpaque(false);
+        myTeamMembers.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.add(myTeamMembers);
 
-        return seasonalSection;
+        myTeamFooterLabel = new JLabel(" ");
+        myTeamFooterLabel.setFont(FontManager.getRunescapeSmallFont());
+        myTeamFooterLabel.setForeground(MUTED_TEXT);
+        myTeamFooterLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        myTeamFooterLabel.setBorder(new EmptyBorder(6, 0, 0, 0));
+        card.add(myTeamFooterLabel);
+
+        return card;
     }
 
-    private JPanel createViewAllowedDropsButton()
+    /** The slot whose roster lists the local player, or 0. */
+    private int findMyTeam(String localName, int teamCount)
     {
-        JPanel wrap = new JPanel(new BorderLayout());
-        wrap.setOpaque(false);
-        wrap.setAlignmentX(Component.LEFT_ALIGNMENT);
-        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
-
-        viewAllowedDropsButton = new JButton();
-        viewAllowedDropsButton.setLayout(new BorderLayout(10, 0));
-        viewAllowedDropsButton.setBackground(BACKGROUND_COLOR);
-        viewAllowedDropsButton.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(90, 90, 90)),
-            new EmptyBorder(8, 10, 8, 10)));
-        viewAllowedDropsButton.setFocusPainted(false);
-        viewAllowedDropsButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        viewAllowedDropsButton.setToolTipText("Browse the seasonal allowlist");
-        viewAllowedDropsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        viewAllowedDropsButton.addActionListener(e -> showAllowedDropsDialog());
-
-        JLabel iconLabel = new JLabel();
-        iconLabel.setPreferredSize(new Dimension(24, 24));
-        iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        viewAllowedDropsButton.add(iconLabel, BorderLayout.WEST);
-        loadCollectionLogIcon(iconLabel);
-
-        JPanel textCol = new JPanel();
-        textCol.setLayout(new BoxLayout(textCol, BoxLayout.Y_AXIS));
-        textCol.setOpaque(false);
-
-        JLabel title = new JLabel("View allowed drops");
-        title.setFont(FontManager.getRunescapeBoldFont());
-        title.setForeground(TEXT_COLOR);
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-        textCol.add(title);
-
-        viewAllowedDropsCountLabel = new JLabel(" ");
-        viewAllowedDropsCountLabel.setFont(FontManager.getRunescapeSmallFont());
-        viewAllowedDropsCountLabel.setForeground(MUTED_TEXT);
-        viewAllowedDropsCountLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        textCol.add(viewAllowedDropsCountLabel);
-
-        viewAllowedDropsButton.add(textCol, BorderLayout.CENTER);
-
-        JLabel chevron = new JLabel("›");
-        chevron.setFont(FontManager.getRunescapeBoldFont().deriveFont(18f));
-        chevron.setForeground(ACCENT_COLOR);
-        viewAllowedDropsButton.add(chevron, BorderLayout.EAST);
-
-        viewAllowedDropsButton.addMouseListener(new MouseAdapter()
+        if (localName.isEmpty())
         {
-            @Override
-            public void mouseEntered(MouseEvent e)
+            return 0;
+        }
+        for (int team = 1; team <= teamCount; team++)
+        {
+            for (String name : teamMembers(team))
             {
-                viewAllowedDropsButton.setBackground(HOVER_COLOR);
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e)
-            {
-                viewAllowedDropsButton.setBackground(BACKGROUND_COLOR);
-            }
-        });
-
-        wrap.add(viewAllowedDropsButton, BorderLayout.CENTER);
-        return wrap;
-    }
-
-    private void loadCollectionLogIcon(JLabel iconLabel)
-    {
-        spriteManager.getSpriteAsync(
-            net.runelite.api.gameval.SpriteID.IconActivities25x25.COLLECTIONS_LOGGED,
-            0,
-            sprite -> SwingUtilities.invokeLater(() ->
-            {
-                if (sprite == null || iconLabel == null)
+                if (localName.equals(Text.standardize(name)))
                 {
-                    return;
+                    return team;
                 }
-                BufferedImage scaled = ImageUtil.resizeImage(sprite, 24, 24);
-                iconLabel.setIcon(new ImageIcon(scaled));
-            }));
+            }
+        }
+        return 0;
     }
 
-    private void showAllowedDropsDialog()
+    private List<String> teamMembers(int team)
     {
-        List<SeasonalCatalogEntry> catalog = seasonalCatalogService.getCatalog();
-        JScrollPane scroll = SeasonalAllowedDropsView.build(catalog, spriteManager, itemManager);
+        return EventTeamService.splitNames(configManager.getConfiguration(
+            EventListConfig.CONFIG_GROUP, EventTeamService.teamNamesKey(team)));
+    }
 
-        JOptionPane.showMessageDialog(
-            this,
-            scroll,
-            "Allowed seasonal drops (" + catalog.size() + ")",
-            JOptionPane.PLAIN_MESSAGE
-        );
+    private String teamTitle(int team)
+    {
+        String labelName = configManager.getConfiguration(
+            EventListConfig.CONFIG_GROUP, EventTeamService.teamLabelKey(team));
+        return (labelName == null || labelName.trim().isEmpty()) ? ("Team " + team) : labelName.trim();
+    }
+
+    private void updateMyTeamCard(EventTeamService.RosterStatus status, int teamCount)
+    {
+        if (myTeamMembers == null)
+        {
+            return;
+        }
+        myTeamMembers.removeAll();
+        myTeamTitleLabel.setIcon(null);
+
+        String eventName = eventTeamSyncService.getEventName();
+        myTeamEventLabel.setText(eventName.isEmpty() ? "Seasonal event" : eventName);
+        myTeamFooterLabel.setText(rosterFooter());
+
+        boolean anyRoster = false;
+        for (int team = 1; team <= teamCount && !anyRoster; team++)
+        {
+            anyRoster = !teamMembers(team).isEmpty();
+        }
+
+        int myTeam = findMyTeam(status.localName, teamCount);
+        if (!anyRoster)
+        {
+            myTeamTitleLabel.setText("<html>No team roster yet. Turn on Sync team roster from API in plugin config.</html>");
+        }
+        else if (status.localName.isEmpty())
+        {
+            myTeamTitleLabel.setText("Log in to see your team.");
+        }
+        else if (myTeam == 0)
+        {
+            myTeamTitleLabel.setText("<html>You're not on a team for this event.</html>");
+        }
+        else
+        {
+            List<String> members = teamMembers(myTeam);
+            int online = 0;
+            for (String name : members)
+            {
+                boolean isOnline = status.onlineNames.contains(Text.standardize(name));
+                boolean isMe = status.localName.equals(Text.standardize(name));
+                online += isOnline ? 1 : 0;
+                myTeamMembers.add(createMemberRow(name, isOnline, isMe));
+            }
+            BufferedImage badge = eventTeamService.paletteBadge(eventTeamService.teamPalette(myTeam));
+            myTeamTitleLabel.setIcon(badge == null ? null : new ImageIcon(badge));
+            myTeamTitleLabel.setText(teamTitle(myTeam) + " \u00b7 " + online + "/" + members.size() + " online");
+        }
+
+        myTeamMembers.revalidate();
+        myTeamMembers.repaint();
+    }
+
+    private JLabel createMemberRow(String name, boolean online, boolean isMe)
+    {
+        JLabel row = new JLabel("\u25cf " + name + (isMe ? " (you)" : ""));
+        row.setFont(FontManager.getRunescapeSmallFont());
+        row.setForeground(online ? TONE_LIVE[0] : MUTED_TEXT);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setBorder(new EmptyBorder(1, 4, 1, 0));
+        return row;
+    }
+
+    private String rosterFooter()
+    {
+        if (!config.enableTeamRosterSync())
+        {
+            return "Roster set by hand (API sync off)";
+        }
+        String updatedAt = eventTeamSyncService.getRosterUpdatedAt();
+        if (updatedAt.isEmpty())
+        {
+            return eventTeamSyncService.getLastStatus();
+        }
+        try
+        {
+            return "Roster updated " + new SimpleDateFormat("MMM d, HH:mm").format(Date.from(Instant.parse(updatedAt)));
+        }
+        catch (RuntimeException e)
+        {
+            return "Roster updated " + updatedAt;
+        }
     }
 
     private JPanel createSeasonalTeamsSection()
@@ -502,94 +504,6 @@ public class EventListPanel extends PluginPanel
         return section;
     }
 
-    private JPanel createSeasonalHistorySection()
-    {
-        JPanel section = new JPanel();
-        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
-        section.setOpaque(false);
-        constrainSeasonalSection(section);
-
-        JLabel heading = new JLabel("Recent submits");
-        heading.setFont(FontManager.getRunescapeBoldFont());
-        heading.setForeground(ACCENT_COLOR);
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        section.add(heading);
-
-        historyMetaLabel = new JLabel(" ");
-        historyMetaLabel.setFont(FontManager.getRunescapeSmallFont());
-        historyMetaLabel.setForeground(SECONDARY_TEXT);
-        historyMetaLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        historyMetaLabel.setBorder(new EmptyBorder(2, 0, 6, 0));
-        section.add(historyMetaLabel);
-
-        historyList = new JPanel();
-        historyList.setLayout(new BoxLayout(historyList, BoxLayout.Y_AXIS));
-        historyList.setBackground(PANEL_COLOR);
-        historyList.setBorder(new EmptyBorder(4, 6, 4, 6));
-        historyList.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JScrollPane historyScroll = new JScrollPane(historyList);
-        historyScroll.setBorder(BorderFactory.createEmptyBorder());
-        historyScroll.setBackground(PANEL_COLOR);
-        historyScroll.getViewport().setBackground(PANEL_COLOR);
-        historyScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        historyScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        historyScroll.setPreferredSize(new Dimension(CONTENT_WIDTH, 140));
-        historyScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
-        section.add(historyScroll);
-
-        return section;
-    }
-
-    private JPanel createDebugTab()
-    {
-        JPanel tab = new JPanel();
-        tab.setLayout(new BoxLayout(tab, BoxLayout.Y_AXIS));
-        tab.setBackground(BACKGROUND_COLOR);
-        tab.setBorder(new EmptyBorder(8, SIDE_PAD, 8, SIDE_PAD));
-
-        JLabel heading = new JLabel("Debug");
-        heading.setFont(FontManager.getRunescapeBoldFont());
-        heading.setForeground(ACCENT_COLOR);
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        tab.add(heading);
-
-        JLabel hint = new JLabel("<html>Seasonal submit diagnostics and test tools. Not needed for normal play.</html>");
-        hint.setFont(FontManager.getRunescapeSmallFont());
-        hint.setForeground(MUTED_TEXT);
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hint.setBorder(new EmptyBorder(4, 0, 8, 0));
-        tab.add(hint);
-
-        debugStatusLabel = new JLabel(" ");
-        debugStatusLabel.setFont(FontManager.getRunescapeSmallFont());
-        debugStatusLabel.setForeground(SECONDARY_TEXT);
-        debugStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        debugStatusLabel.setBorder(new EmptyBorder(0, 0, 8, 0));
-        tab.add(debugStatusLabel);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        buttons.setOpaque(false);
-        buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
-        buttons.add(createPanelButton("Refresh catalog", "Reload allowed drops from the API", e ->
-        {
-            if (refreshCatalogCallback != null)
-            {
-                refreshCatalogCallback.run();
-            }
-        }));
-        buttons.add(createPanelButton("Test submit", "POST the first allowed drop to the dev API (dev-api.ironforged.gg), never prod", e ->
-        {
-            if (testSubmitCallback != null)
-            {
-                testSubmitCallback.run();
-            }
-        }));
-        tab.add(buttons);
-        tab.add(Box.createVerticalGlue());
-        return tab;
-    }
-
     private JPanel createHeaderPanel()
     {
         JPanel headerWrapper = new JPanel();
@@ -691,163 +605,21 @@ public class EventListPanel extends PluginPanel
         return button;
     }
 
-    /**
-     * Refresh the Seasonal / Debug tabs (user status, diagnostics, submit history).
-     */
-    public void updateSeasonalSection()
-    {
-        SwingUtilities.invokeLater(() ->
-        {
-            if (seasonalStatusLabel == null)
-            {
-                return;
-            }
-
-            boolean enabled = config.enableSeasonalSubmit();
-            if (!enabled)
-            {
-                seasonalStatusLabel.setText("<html>Submit is off. Enable it in plugin config (opt-in).</html>");
-            }
-            else
-            {
-                String eventName = seasonalCatalogService.getEventName();
-                String eventId = seasonalCatalogService.resolveEventId(config);
-                int count = seasonalCatalogService.catalogSize();
-                int queued = seasonalDropSubmitService.getQueueSize();
-
-                StringBuilder meta = new StringBuilder("<html>");
-                if (!seasonalCatalogService.hasActiveEvent()
-                    && seasonalCatalogService.getEventId().isEmpty()
-                    && eventId.isEmpty())
-                {
-                    meta.append("No active seasonal event");
-                }
-                else
-                {
-                    meta.append(escapeHtml(eventName.isEmpty() ? "Seasonal event" : eventName));
-                    if (seasonalCatalogService.isEventEnded())
-                    {
-                        meta.append(" (ended)");
-                    }
-                    meta.append("<br>").append(count).append(" allowed drop");
-                    if (count != 1)
-                    {
-                        meta.append("s");
-                    }
-                }
-                if (queued > 0)
-                {
-                    meta.append("<br>").append(queued).append(" queued for retry");
-                }
-                meta.append("</html>");
-                seasonalStatusLabel.setText(meta.toString());
-            }
-
-            refreshAllowedDropsButton();
-            updateDebugStatus();
-            updateHistoryList();
-        });
-    }
-
-    private void refreshAllowedDropsButton()
-    {
-        if (viewAllowedDropsCountLabel == null)
-        {
-            return;
-        }
-        int count = seasonalCatalogService.catalogSize();
-        if (count <= 0)
-        {
-            viewAllowedDropsCountLabel.setText("No catalog loaded yet");
-        }
-        else
-        {
-            viewAllowedDropsCountLabel.setText(count + " boss / item pair" + (count == 1 ? "" : "s"));
-        }
-        if (viewAllowedDropsButton != null)
-        {
-            viewAllowedDropsButton.setToolTipText(
-                count > 0
-                    ? "Open allowlist (" + count + " drops)"
-                    : "Open allowlist");
-        }
-    }
-
-    private void updateDebugStatus()
-    {
-        if (debugStatusLabel == null)
-        {
-            return;
-        }
-
-        String eventName = seasonalCatalogService.getEventName();
-        String eventId = seasonalCatalogService.resolveEventId(config);
-        String eventPassphrase = seasonalCatalogService.resolveEventPassphrase(config);
-        int catalog = seasonalCatalogService.catalogSize();
-        String err = seasonalCatalogService.getLastError();
-        String status = seasonalDropSubmitService.getLastStatus();
-        int queued = seasonalDropSubmitService.getQueueSize();
-
-        StringBuilder meta = new StringBuilder("<html>");
-        meta.append(config.useDevApi() ? "API: dev" : "API: prod");
-        meta.append(" · ").append(config.enableSeasonalSubmit() ? "Submit: on" : "Submit: off");
-        if (config.seasonalSubmitDryRun())
-        {
-            meta.append(" · dry run");
-        }
-        meta.append("<br>");
-        if (!eventName.isEmpty())
-        {
-            meta.append(escapeHtml(eventName));
-            if (seasonalCatalogService.isEventEnded())
-            {
-                meta.append(" (ended)");
-            }
-            meta.append("<br>");
-        }
-        meta.append("Catalog: ").append(catalog).append(" · Queue: ").append(queued);
-        if (!eventId.isEmpty())
-        {
-            meta.append("<br>Seasonal Event ID: ").append(escapeHtml(eventId));
-        }
-        else
-        {
-            meta.append("<br>Seasonal Event ID: <i>not set</i>");
-        }
-        if (!eventPassphrase.isEmpty())
-        {
-            meta.append("<br>Seasonal Event Passphrase: ").append(escapeHtml(eventPassphrase));
-        }
-        else
-        {
-            meta.append("<br>Seasonal Event Passphrase: <i>not set</i>");
-        }
-        if (err != null && !err.isEmpty())
-        {
-            meta.append("<br>Catalog error: ").append(escapeHtml(err));
-        }
-        if (status != null && !status.isEmpty())
-        {
-            meta.append("<br>").append(escapeHtml(status));
-        }
-        meta.append("</html>");
-        debugStatusLabel.setText(meta.toString());
-    }
-
     public void refreshTeamsOnlineCounts()
     {
         if (eventTeamService == null)
         {
             return;
         }
-        eventTeamService.computeOnlineCounts(onlineByTeam ->
+        eventTeamService.computeOnlineCounts(status ->
         {
             int teamCount = Math.min(Math.max(config.teamCount(), 1), EventTeamService.MAX_TEAMS);
             int onlineTotal = 0;
             for (int team = 1; team <= teamCount; team++)
             {
-                onlineTotal += updateTeamLabel(team, onlineByTeam.getOrDefault(team, 0));
+                onlineTotal += updateTeamLabel(team, status.onlineByTeam.getOrDefault(team, 0));
             }
+            updateMyTeamCard(status, teamCount);
             if (teamsHeaderLabel != null)
             {
                 teamsHeaderLabel.setText("Event teams · " + teamCount + " teams · " + onlineTotal + " online");
@@ -1066,72 +838,6 @@ public class EventListPanel extends PluginPanel
         // Neutral chrome — never paint the team hue behind the icon (red-on-red / gold-on-gold).
         colorButton.setBackground(PANEL_COLOR);
         colorButton.setToolTipText(palette.getLabel());
-    }
-
-    private void updateHistoryList()
-    {
-        if (historyList == null || historyMetaLabel == null)
-        {
-            return;
-        }
-
-        List<SeasonalDropRecord> history = seasonalDropSubmitService.getHistory();
-        historyMetaLabel.setText(history.isEmpty()
-            ? "No submits for this profile yet"
-            : history.size() + " submit" + (history.size() == 1 ? "" : "s"));
-
-        historyList.removeAll();
-        if (history.isEmpty())
-        {
-            JLabel empty = new JLabel("Eligible drops you submit appear here.");
-            empty.setFont(FontManager.getRunescapeSmallFont());
-            empty.setForeground(MUTED_TEXT);
-            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
-            historyList.add(empty);
-        }
-        else
-        {
-            SimpleDateFormat fmt = new SimpleDateFormat("MMM d HH:mm");
-            int shown = Math.min(history.size(), 25);
-            for (int i = 0; i < shown; i++)
-            {
-                SeasonalDropRecord record = history.get(i);
-                long whenMs = record.savedAtEpochMs > 0 ? record.savedAtEpochMs : 0L;
-                String when = whenMs > 0 ? fmt.format(new Date(whenMs)) : record.date;
-                String item = record.itemName == null || record.itemName.isEmpty()
-                    ? "#" + record.itemId
-                    : record.itemName;
-                String status = record.status == null ? "" : record.status;
-                boolean ok = "submitted".equalsIgnoreCase(status) || "accepted".equalsIgnoreCase(status);
-
-                JPanel card = new JPanel(new BorderLayout(4, 0));
-                card.setBackground(BACKGROUND_COLOR);
-                card.setBorder(new EmptyBorder(4, 4, 4, 4));
-                card.setAlignmentX(Component.LEFT_ALIGNMENT);
-                card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-
-                JLabel primary = new JLabel("<html>" + escapeHtml(item) + "</html>");
-                primary.setFont(FontManager.getRunescapeSmallFont());
-                primary.setForeground(ok ? ACCENT_COLOR : TEXT_COLOR);
-                card.add(primary, BorderLayout.NORTH);
-
-                JLabel secondary = new JLabel(when + " · " + record.boss + " · " + status);
-                secondary.setFont(FontManager.getRunescapeSmallFont());
-                secondary.setForeground(MUTED_TEXT);
-                card.add(secondary, BorderLayout.SOUTH);
-
-                String tip = "ID: " + (record.id == null || record.id.isEmpty() ? "(none)" : record.id);
-                if (record.detail != null && !record.detail.isEmpty())
-                {
-                    tip += " — " + record.detail;
-                }
-                card.setToolTipText(tip);
-                historyList.add(card);
-                historyList.add(Box.createVerticalStrut(3));
-            }
-        }
-        historyList.revalidate();
-        historyList.repaint();
     }
 
     private void refreshHealthDot()

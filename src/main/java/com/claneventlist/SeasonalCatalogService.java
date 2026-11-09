@@ -1,8 +1,6 @@
 package com.claneventlist;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
@@ -11,13 +9,11 @@ import okhttp3.Response;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
- * Fetches and caches the public seasonal drop catalog.
- * The plugin uses this as the only notable-drop gate (common loot never POSTs).
+ * Fetches GET /plugins/seasonal for the event identity: the passphrase shown on the overlay and the
+ * event id that team roster sync asks for. The drop catalog in the same payload is ignored now that
+ * plugin drop submit is removed (restore from git tag seasonal-submit-v1).
  */
 @Slf4j
 @Singleton
@@ -27,16 +23,9 @@ public class SeasonalCatalogService
     private final OkHttpClient httpClient;
     private final Gson gson;
 
-    private volatile List<SeasonalCatalogEntry> catalog = Collections.emptyList();
     private volatile String eventId = "";
     private volatile String eventPassphrase = "";
-    private volatile String eventName = "";
-    private volatile boolean eventEnded = false;
-    private volatile boolean acceptingSubmissions = false;
-    private volatile boolean passphraseRequired = false;
-    private volatile boolean hasActiveEvent = false;
     private volatile long lastFetchTime = 0;
-    private volatile String lastError = "";
 
     @Inject
     public SeasonalCatalogService(EventListConfig config, OkHttpClient httpClient, Gson gson)
@@ -59,63 +48,24 @@ public class SeasonalCatalogService
         {
             if (!response.isSuccessful() || response.body() == null)
             {
-                lastError = "HTTP " + response.code();
-                log.warn("Seasonal catalog fetch failed: {}", lastError);
-                // Keep the previous catalog so a brief outage does not wipe eligibility.
-                // lastFetchTime is not advanced, so needsRefresh() retries on the next 1-minute tick.
+                // Keep the previous values; lastFetchTime is not advanced, so the next tick retries.
+                log.warn("Seasonal event fetch failed: HTTP {}", response.code());
                 return;
             }
 
             JsonObject root = gson.fromJson(response.body().string(), JsonObject.class);
-            if (root == null)
-            {
-                lastError = "empty payload";
-                return;
-            }
-
-            List<SeasonalCatalogEntry> next = new ArrayList<>();
-            JsonArray rows = root.has("catalog") && root.get("catalog").isJsonArray()
-                ? root.getAsJsonArray("catalog")
-                : null;
-            if (rows != null)
-            {
-                for (JsonElement element : rows)
-                {
-                    if (!element.isJsonObject())
-                    {
-                        continue;
-                    }
-                    JsonObject row = element.getAsJsonObject();
-                    String boss = text(row, "boss");
-                    String item = text(row, "item");
-                    if (boss.isEmpty() || item.isEmpty())
-                    {
-                        continue;
-                    }
-                    int itemId = intVal(row, "item_id");
-                    if (itemId <= 0)
-                    {
-                        itemId = intVal(row, "itemId");
-                    }
-                    next.add(new SeasonalCatalogEntry(boss, item, itemId));
-                }
-            }
-
-            JsonObject event = root.has("event") && root.get("event").isJsonObject()
+            JsonObject event = root != null && root.has("event") && root.get("event").isJsonObject()
                 ? root.getAsJsonObject("event")
                 : null;
-            boolean nextHasActiveEvent = event != null;
+
             String nextEventId = "";
             String nextEventPassphrase = "";
-            String nextEventName = "";
-            boolean nextEventEnded = false;
             if (event != null)
             {
                 nextEventId = firstNonEmpty(
                     text(event, "seasonal_event_id"),
                     firstNonEmpty(text(event, "id"), text(event, "plugin_keyword"))
                 );
-                // Seasonal Event Passphrase — overlay text + submit auth (not the event id).
                 nextEventPassphrase = firstNonEmpty(
                     text(event, "event_passphrase"),
                     firstNonEmpty(
@@ -123,54 +73,24 @@ public class SeasonalCatalogService
                         firstNonEmpty(text(event, "passphrase"), text(event, "event_key"))
                     )
                 );
-                nextEventName = text(event, "name");
-                nextEventEnded = bool(event, "event_ended");
             }
 
-            // Older responses: treat a non-empty catalog as accepting.
-            boolean nextAccepting = root.has("accepting_submissions")
-                ? bool(root, "accepting_submissions")
-                : !next.isEmpty();
-            boolean nextPassphraseRequired = bool(root, "passphrase_required");
-
-            hasActiveEvent = nextHasActiveEvent;
             eventId = nextEventId;
             eventPassphrase = nextEventPassphrase;
-            eventName = nextEventName;
-            eventEnded = nextEventEnded;
-            acceptingSubmissions = nextAccepting;
-            passphraseRequired = nextPassphraseRequired;
-            catalog = Collections.unmodifiableList(next);
             lastFetchTime = System.currentTimeMillis();
-            lastError = "";
-            log.debug(
-                "Seasonal catalog refreshed: active={} ended={} id={} entries={} accepting={}",
-                nextHasActiveEvent,
-                nextEventEnded,
-                nextEventId,
-                next.size(),
-                nextAccepting
-            );
+            log.debug("Seasonal event refreshed: id={}", nextEventId);
         }
         catch (Exception e)
         {
-            lastError = e.getMessage() == null ? "fetch error" : e.getMessage();
-            log.warn("Seasonal catalog error: {}", lastError);
+            log.warn("Seasonal event error: {}", e.getMessage());
         }
     }
 
     public void clear()
     {
-        catalog = Collections.emptyList();
         eventId = "";
         eventPassphrase = "";
-        eventName = "";
-        eventEnded = false;
-        acceptingSubmissions = false;
-        passphraseRequired = false;
-        hasActiveEvent = false;
         lastFetchTime = 0;
-        lastError = "";
     }
 
     public boolean needsRefresh(int refreshIntervalMinutes)
@@ -184,71 +104,7 @@ public class SeasonalCatalogService
     }
 
     /**
-     * Returns the catalog row for a match, or null if not notable.
-     * Prefers item id when the catalog publishes one.
-     */
-    public SeasonalCatalogEntry findMatch(String bossName, String itemName, int itemId)
-    {
-        if (!canSubmitAgainstCatalog())
-        {
-            return null;
-        }
-        for (SeasonalCatalogEntry entry : catalog)
-        {
-            if (entry.matches(bossName, itemName, itemId))
-            {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    public boolean canSubmitAgainstCatalog()
-    {
-        return acceptingSubmissions && !catalog.isEmpty();
-    }
-
-    public List<SeasonalCatalogEntry> getCatalog()
-    {
-        return catalog;
-    }
-
-    public boolean isPassphraseRequired()
-    {
-        return passphraseRequired;
-    }
-
-    public boolean hasActiveEvent()
-    {
-        return hasActiveEvent;
-    }
-
-    public boolean isEventEnded()
-    {
-        return eventEnded;
-    }
-
-    public boolean isAcceptingSubmissions()
-    {
-        return acceptingSubmissions;
-    }
-
-    public String getEventName()
-    {
-        return eventName;
-    }
-
-    /**
-     * Cached Seasonal Event ID from the last catalog fetch (may be empty).
-     */
-    public String getEventId()
-    {
-        return eventId;
-    }
-
-    /**
-     * Seasonal Event ID for submits.
-     * Prefers the config value when set; otherwise the API value.
+     * Seasonal Event ID. Prefers the config value when set; otherwise the API value.
      */
     public String resolveEventId(EventListConfig config)
     {
@@ -264,16 +120,7 @@ public class SeasonalCatalogService
     }
 
     /**
-     * Server-published Seasonal Event Passphrase (shown on the overlay).
-     */
-    public String getEventPassphrase()
-    {
-        return eventPassphrase;
-    }
-
-    /**
-     * Seasonal Event Passphrase for overlay + submit auth.
-     * Prefers the config value when set; otherwise the API value.
+     * Seasonal Event Passphrase for the overlay. Prefers the config value when set; otherwise the API value.
      */
     public String resolveEventPassphrase(EventListConfig config)
     {
@@ -288,16 +135,6 @@ public class SeasonalCatalogService
         return eventPassphrase == null ? "" : eventPassphrase;
     }
 
-    public String getLastError()
-    {
-        return lastError;
-    }
-
-    public int catalogSize()
-    {
-        return catalog.size();
-    }
-
     private static String text(JsonObject row, String key)
     {
         if (row == null || !row.has(key) || !row.get(key).isJsonPrimitive())
@@ -305,36 +142,6 @@ public class SeasonalCatalogService
             return "";
         }
         return row.get(key).getAsString().trim();
-    }
-
-    private static boolean bool(JsonObject obj, String key)
-    {
-        return obj.has(key) && obj.get(key).isJsonPrimitive() && obj.get(key).getAsBoolean();
-    }
-
-    private static int intVal(JsonObject row, String key)
-    {
-        if (row == null || !row.has(key) || row.get(key).isJsonNull())
-        {
-            return 0;
-        }
-        try
-        {
-            if (row.get(key).isJsonPrimitive() && row.get(key).getAsJsonPrimitive().isNumber())
-            {
-                return row.get(key).getAsInt();
-            }
-            String raw = row.get(key).getAsString().trim();
-            if (raw.isEmpty())
-            {
-                return 0;
-            }
-            return Integer.parseInt(raw);
-        }
-        catch (Exception e)
-        {
-            return 0;
-        }
     }
 
     private static String firstNonEmpty(String a, String b)

@@ -39,6 +39,9 @@ public class EventTeamSyncService
     private volatile long lastFetchTime;
     private volatile String lastStatus = "Team sync idle";
     private volatile String lastError = "";
+    /** From the last successful sync; empty until one succeeds. */
+    private volatile String eventName = "";
+    private volatile String rosterUpdatedAt = "";
     /** True while applyTeams writes config; the plugin skips per-key team handling meanwhile. */
     private volatile boolean applying;
 
@@ -68,6 +71,17 @@ public class EventTeamSyncService
         return lastError;
     }
 
+    public String getEventName()
+    {
+        return eventName;
+    }
+
+    /** ISO-8601 instant the roster was last published, or empty. */
+    public String getRosterUpdatedAt()
+    {
+        return rosterUpdatedAt;
+    }
+
     public boolean isApplying()
     {
         return applying;
@@ -79,6 +93,8 @@ public class EventTeamSyncService
         lastFetchTime = 0;
         lastStatus = "Team sync idle";
         lastError = "";
+        eventName = "";
+        rosterUpdatedAt = "";
     }
 
     public boolean needsRefresh(int intervalMinutes)
@@ -204,6 +220,8 @@ public class EventTeamSyncService
             }
 
             lastError = "";
+            eventName = text(root, "event_name");
+            rosterUpdatedAt = text(root, "updated_at");
             String apiEvent = text(root, "event_id");
             lastStatus = "Synced " + applied + " team(s)"
                 + (apiEvent.isEmpty() ? "" : " · " + apiEvent);

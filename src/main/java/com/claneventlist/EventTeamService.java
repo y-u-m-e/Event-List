@@ -8,6 +8,7 @@ import net.runelite.api.FriendsChatManager;
 import net.runelite.api.FriendsChatMember;
 import net.runelite.api.GameState;
 import net.runelite.api.MessageNode;
+import net.runelite.api.Player;
 import net.runelite.api.ScriptID;
 import net.runelite.api.WorldType;
 import net.runelite.api.clan.ClanChannel;
@@ -375,11 +376,35 @@ public class EventTeamService
         tagMemberList(InterfaceID.ClansGuestSidepanel.PLAYERLIST);
     }
 
-    public void computeOnlineCounts(Consumer<Map<Integer, Integer>> consumer)
+    /** Who is online right now, gathered on the client thread for the panel. */
+    public static final class RosterStatus
+    {
+        public final Map<Integer, Integer> onlineByTeam;
+        /** Standardized names. */
+        public final Set<String> onlineNames;
+        /** Standardized local player name, empty when logged out. */
+        public final String localName;
+
+        RosterStatus(Map<Integer, Integer> onlineByTeam, Set<String> onlineNames, String localName)
+        {
+            this.onlineByTeam = onlineByTeam;
+            this.onlineNames = onlineNames;
+            this.localName = localName;
+        }
+    }
+
+    public void computeOnlineCounts(Consumer<RosterStatus> consumer)
     {
         clientThread.invokeLater(() ->
         {
             Set<String> onlineNames = new HashSet<>();
+            Player local = client.getLocalPlayer();
+            String localName = local == null || local.getName() == null ? "" : Text.standardize(local.getName());
+            if (!localName.isEmpty())
+            {
+                // You are online even when not in a clan or friends chat.
+                onlineNames.add(localName);
+            }
 
             ClanChannel clan = client.getClanChannel();
             if (clan != null)
@@ -418,7 +443,8 @@ public class EventTeamService
                 }
             }
 
-            SwingUtilities.invokeLater(() -> consumer.accept(onlineByTeam));
+            RosterStatus status = new RosterStatus(onlineByTeam, onlineNames, localName);
+            SwingUtilities.invokeLater(() -> consumer.accept(status));
         });
     }
 

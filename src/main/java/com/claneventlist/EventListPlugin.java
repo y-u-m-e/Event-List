@@ -17,13 +17,8 @@ import net.runelite.api.events.ScriptPostFired;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.NpcLootReceived;
-import net.runelite.client.events.PlayerLootReceived;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
@@ -36,12 +31,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Ironforged Clan Events: events side panel, seasonal drop submit, passphrase overlay and event team badges.
+ * Ironforged Clan Events: events side panel, your seasonal team, passphrase overlay and event team badges.
  */
 @Slf4j
 @PluginDescriptor(
     name = "Ironforged Clan Events",
-    description = "Display Iron Forged clan events from api.ironforged.gg in a side panel, with optional Seasonal Event Passphrase overlay and notable-drop submit",
+    description = "Display Iron Forged clan events from api.ironforged.gg in a side panel, with your seasonal team, an optional Seasonal Event Passphrase overlay, and team badges",
     tags = {"clan", "events", "calendar", "schedule", "seasonal", "ironforged", "teams"}
 )
 public class EventListPlugin extends Plugin
@@ -56,12 +51,6 @@ public class EventListPlugin extends Plugin
     private ConfigManager configManager;
 
     @Inject
-    private ItemManager itemManager;
-
-    @Inject
-    private SpriteManager spriteManager;
-
-    @Inject
     private OverlayManager overlayManager;
 
     @Inject
@@ -72,9 +61,6 @@ public class EventListPlugin extends Plugin
 
     @Inject
     private SeasonalCatalogService seasonalCatalogService;
-
-    @Inject
-    private SeasonalDropSubmitService seasonalDropSubmitService;
 
     @Inject
     private EventTeamService eventTeamService;
@@ -109,16 +95,10 @@ public class EventListPlugin extends Plugin
         panel = new EventListPanel(
             config,
             configManager,
-            itemManager,
-            spriteManager,
             eventsApiService,
-            seasonalCatalogService,
-            seasonalDropSubmitService,
             eventTeamService,
             eventTeamSyncService,
             this::refreshEvents,
-            this::refreshSeasonalCatalog,
-            this::testSeasonalSubmit,
             this::syncTeams
         );
 
@@ -134,14 +114,6 @@ public class EventListPlugin extends Plugin
         clientToolbar.addNavigation(navButton);
 
         initialized = true;
-        seasonalDropSubmitService.setStatusListener(() ->
-        {
-            if (panel != null)
-            {
-                panel.updateSeasonalSection();
-            }
-        });
-        seasonalDropSubmitService.start();
         eventTeamService.start();
         refreshEvents();
         refreshSeasonalCatalog();
@@ -158,7 +130,6 @@ public class EventListPlugin extends Plugin
         seasonalCatalogService.clear();
         eventsApiService.clearEvents();
         eventTeamSyncService.reset();
-        seasonalDropSubmitService.setStatusListener(null);
         eventTeamService.stop();
 
         initialized = false;
@@ -172,41 +143,21 @@ public class EventListPlugin extends Plugin
     {
         if (event.getGameState() == GameState.LOGGED_IN && initialized)
         {
-            seasonalDropSubmitService.refreshProfileKey();
             eventTeamService.refreshSurfaces();
             if (panel != null)
             {
-                panel.updateSeasonalSection();
                 panel.refreshTeamsOnlineCounts();
             }
             if (eventsApiService.needsRefresh(config.refreshInterval()))
             {
                 refreshEvents();
             }
-            if ((config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+            if (config.showSeasonalEventPassphrase()
                 && seasonalCatalogService.needsRefresh(config.seasonalCatalogRefreshInterval()))
             {
                 refreshSeasonalCatalog();
             }
         }
-    }
-
-    @Subscribe
-    public void onNpcLootReceived(NpcLootReceived event)
-    {
-        seasonalDropSubmitService.onNpcLootReceived(event);
-    }
-
-    @Subscribe
-    public void onPlayerLootReceived(PlayerLootReceived event)
-    {
-        seasonalDropSubmitService.onPlayerLootReceived(event);
-    }
-
-    @Subscribe
-    public void onLootReceived(LootReceived event)
-    {
-        seasonalDropSubmitService.onLootReceived(event);
     }
 
     @Subscribe
@@ -341,33 +292,22 @@ public class EventListPlugin extends Plugin
         if (key.equals("enableEventsFeed") || key.equals("useDevApi"))
         {
             refreshEvents();
-            if (config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+            refreshSeasonalCatalog();
+            if (config.enableTeamRosterSync())
             {
-                refreshSeasonalCatalog();
-            }
-            else if (panel != null)
-            {
-                panel.updateSeasonalSection();
+                syncTeams();
             }
         }
 
-        if (key.equals("enableSeasonalSubmit")
-            || key.equals("showSeasonalEventPassphrase"))
+        if (key.equals("showSeasonalEventPassphrase"))
         {
-            if (config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+            if (config.showSeasonalEventPassphrase())
             {
                 refreshSeasonalCatalog();
             }
-            else if (!config.enableSeasonalSubmit())
+            else
             {
-                if (!config.showSeasonalEventPassphrase())
-                {
-                    seasonalCatalogService.clear();
-                }
-                if (panel != null)
-                {
-                    panel.updateSeasonalSection();
-                }
+                seasonalCatalogService.clear();
             }
         }
 
@@ -377,12 +317,6 @@ public class EventListPlugin extends Plugin
             {
                 panel.updateEvents();
             }
-        }
-
-        // Dry run / event id / passphrase overrides show in the Seasonal and Debug tabs.
-        if (key.startsWith("seasonal") && panel != null)
-        {
-            panel.updateSeasonalSection();
         }
     }
 
@@ -404,18 +338,12 @@ public class EventListPlugin extends Plugin
             panel.updateEvents();
         }
 
-        if ((config.enableSeasonalSubmit() || config.showSeasonalEventPassphrase())
+        if (config.showSeasonalEventPassphrase()
             && seasonalCatalogService.needsRefresh(config.seasonalCatalogRefreshInterval()))
         {
             refreshSeasonalCatalog();
         }
 
-        if (config.enableSeasonalSubmit())
-        {
-            seasonalDropSubmitService.processQueue();
-        }
-
-        // Team sync deliberately reuses the catalog interval rather than adding another setting.
         if (config.enableTeamRosterSync()
             && eventTeamSyncService.needsRefresh(config.seasonalCatalogRefreshInterval()))
         {
@@ -476,43 +404,16 @@ public class EventListPlugin extends Plugin
     }
 
     /**
-     * Fetches GET /plugins/seasonal. Needed by submit (the allowlist) and also by the
-     * passphrase overlay, since the server-published passphrase comes from the same payload.
+     * Fetches GET /plugins/seasonal for the server-published passphrase shown on the overlay.
      */
     public void refreshSeasonalCatalog()
     {
-        if (!initialized)
-        {
-            return;
-        }
-        if (!config.enableSeasonalSubmit() && !config.showSeasonalEventPassphrase())
+        if (!initialized || !config.showSeasonalEventPassphrase())
         {
             return;
         }
 
-        executorService.submit(() ->
-        {
-            try
-            {
-                seasonalCatalogService.refresh();
-                log.debug(
-                    "Seasonal catalog: {} entries id={}",
-                    seasonalCatalogService.catalogSize(),
-                    seasonalCatalogService.getEventId()
-                );
-            }
-            catch (Exception e)
-            {
-                log.warn("Failed to refresh seasonal catalog: {}", e.getMessage());
-            }
-            finally
-            {
-                if (panel != null)
-                {
-                    panel.updateSeasonalSection();
-                }
-            }
-        });
+        executorService.submit(seasonalCatalogService::refresh);
     }
 
     public void syncTeams()
@@ -537,28 +438,6 @@ public class EventListPlugin extends Plugin
                     panel.rebuildTeamsUi();
                 }
                 panel.updateTeamsSyncLabel();
-            }
-        });
-    }
-
-    public void testSeasonalSubmit()
-    {
-        if (!initialized)
-        {
-            return;
-        }
-
-        executorService.submit(() ->
-        {
-            if (config.enableSeasonalSubmit()
-                && (seasonalCatalogService.catalogSize() == 0 || seasonalCatalogService.needsRefresh(1)))
-            {
-                seasonalCatalogService.refresh();
-            }
-            seasonalDropSubmitService.submitTestDrop();
-            if (panel != null)
-            {
-                panel.updateSeasonalSection();
             }
         });
     }

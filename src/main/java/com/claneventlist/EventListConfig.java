@@ -9,7 +9,7 @@ import net.runelite.client.config.Range;
 import java.awt.Color;
 
 /**
- * Plugin settings: events feed, seasonal drop submit, passphrase overlay and event teams.
+ * Plugin settings: events feed, passphrase overlay and event teams.
  */
 @ConfigGroup(EventListConfig.CONFIG_GROUP)
 public interface EventListConfig extends Config
@@ -24,30 +24,23 @@ public interface EventListConfig extends Config
     String eventsSection = "eventsSection";
 
     @ConfigSection(
-        name = "Seasonal Drop Submit",
-        description = "Opt-in auto-submit of notable seasonal drops",
-        position = 1
-    )
-    String seasonalSubmitSection = "seasonalSubmitSection";
-
-    @ConfigSection(
         name = "Seasonal Event",
-        description = "Seasonal Event ID and Passphrase (overlay + drop submit identity)",
-        position = 2
+        description = "Seasonal Event ID and Passphrase overlay",
+        position = 1
     )
     String seasonalEventPassphraseSection = "seasonalEventPassphraseSection";
 
     @ConfigSection(
         name = "Panel",
         description = "Configure panel settings",
-        position = 3
+        position = 2
     )
     String panelSection = "panelSection";
 
     @ConfigSection(
         name = "Teams",
         description = "Colored team badges in chat, friends/clan lists, and overhead names",
-        position = 4
+        position = 3
     )
     String teamsSection = "teamsSection";
 
@@ -82,51 +75,11 @@ public interface EventListConfig extends Config
     @ConfigItem(
         keyName = "useDevApi",
         name = "Use dev API",
-        description = "Use https://dev-api.ironforged.gg instead of production https://api.ironforged.gg for events, health, seasonal catalog, drop submit, and team roster sync",
+        description = "Use https://dev-api.ironforged.gg instead of production https://api.ironforged.gg for events, health, the seasonal event, and team roster sync",
         section = eventsSection,
         position = 2
     )
     default boolean useDevApi()
-    {
-        return false;
-    }
-
-    // ========== Seasonal Drop Submit ==========
-
-    @ConfigItem(
-        keyName = "enableSeasonalSubmit",
-        name = "Submit notable seasonal drops",
-        description = "When enabled, only catalog-listed boss/item drops are screenshotted and sent with Seasonal Event ID + Seasonal Event Passphrase. Common loot is ignored locally and never uploaded.",
-        warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
-        section = seasonalSubmitSection,
-        position = 0
-    )
-    default boolean enableSeasonalSubmit()
-    {
-        return false;
-    }
-
-    @ConfigItem(
-        keyName = "seasonalCatalogRefreshInterval",
-        name = "Catalog refresh (min)",
-        description = "How often to refresh the notable-drop catalog from the API",
-        section = seasonalSubmitSection,
-        position = 1
-    )
-    @Range(min = 1, max = 60)
-    default int seasonalCatalogRefreshInterval()
-    {
-        return 15;
-    }
-
-    @ConfigItem(
-        keyName = "seasonalSubmitDryRun",
-        name = "Dry run (no upload)",
-        description = "Detect and match notable drops, but do not screenshot or POST them",
-        section = seasonalSubmitSection,
-        position = 2
-    )
-    default boolean seasonalSubmitDryRun()
     {
         return false;
     }
@@ -149,7 +102,7 @@ public interface EventListConfig extends Config
     @ConfigItem(
         keyName = "seasonalEventId",
         name = "Seasonal Event ID",
-        description = "Unique id for which seasonal event drops count toward. Used when the API does not publish one, or to override it.",
+        description = "Which seasonal event team roster sync asks for. Used when the API does not publish one, or to override it.",
         section = seasonalEventPassphraseSection,
         position = 1
     )
@@ -161,7 +114,7 @@ public interface EventListConfig extends Config
     @ConfigItem(
         keyName = "seasonalEventPassphrase",
         name = "Seasonal Event Passphrase",
-        description = "Shown on the overlay and used to authenticate drop submits. Prefer the value from the API when published; this is the fallback / staff-provided passphrase.",
+        description = "Shown on the overlay. Prefer the value from the API when published; this is the fallback / staff-provided passphrase.",
         secret = true,
         section = seasonalEventPassphraseSection,
         position = 2
@@ -271,6 +224,19 @@ public interface EventListConfig extends Config
     default boolean enableTeamRosterSync()
     {
         return false;
+    }
+
+    @ConfigItem(
+        keyName = "seasonalCatalogRefreshInterval",
+        name = "Roster refresh (min)",
+        description = "How often to re-sync the team roster and seasonal event from the API",
+        section = teamsSection,
+        position = 2
+    )
+    @Range(min = 1, max = 60)
+    default int seasonalCatalogRefreshInterval()
+    {
+        return 15;
     }
 
     @ConfigItem(
