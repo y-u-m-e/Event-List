@@ -87,12 +87,25 @@ public interface EventListConfig extends Config
     // ========== Seasonal Event ==========
 
     @ConfigItem(
+        keyName = "showSeasonalEvent",
+        name = "Show seasonal event",
+        description = "Show the current seasonal event and your team's board from api.ironforged.gg",
+        warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
+        section = seasonalEventPassphraseSection,
+        position = 0
+    )
+    default boolean showSeasonalEvent()
+    {
+        return false;
+    }
+
+    @ConfigItem(
         keyName = "showSeasonalEventPassphrase",
         name = "Show Seasonal Event Passphrase",
         description = "Draw the Seasonal Event Passphrase on the game screen (drag to reposition). Fetches the passphrase from api.ironforged.gg",
         warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
         section = seasonalEventPassphraseSection,
-        position = 0
+        position = 1
     )
     default boolean showSeasonalEventPassphrase()
     {
@@ -104,7 +117,7 @@ public interface EventListConfig extends Config
         name = "Seasonal Event ID",
         description = "Which seasonal event team roster sync asks for. Used when the API does not publish one, or to override it.",
         section = seasonalEventPassphraseSection,
-        position = 1
+        position = 2
     )
     default String seasonalEventId()
     {
@@ -117,7 +130,7 @@ public interface EventListConfig extends Config
         description = "Shown on the overlay. Prefer the value from the API when published; this is the fallback / staff-provided passphrase.",
         secret = true,
         section = seasonalEventPassphraseSection,
-        position = 2
+        position = 3
     )
     default String seasonalEventPassphrase()
     {
@@ -129,7 +142,7 @@ public interface EventListConfig extends Config
         name = "Show Date & Time",
         description = "Show the current local date and time beside the Seasonal Event Passphrase",
         section = seasonalEventPassphraseSection,
-        position = 3
+        position = 4
     )
     default boolean showSeasonalEventDateTime()
     {
@@ -141,7 +154,7 @@ public interface EventListConfig extends Config
         name = "Passphrase Color",
         description = "Color of the Seasonal Event Passphrase text",
         section = seasonalEventPassphraseSection,
-        position = 4
+        position = 5
     )
     default Color seasonalEventPassphraseColor()
     {
@@ -153,7 +166,7 @@ public interface EventListConfig extends Config
         name = "Date & Time Color",
         description = "Color of the date and time text",
         section = seasonalEventPassphraseSection,
-        position = 5
+        position = 6
     )
     default Color seasonalEventDateTimeColor()
     {
@@ -165,7 +178,7 @@ public interface EventListConfig extends Config
         name = "Background Color",
         description = "Background color behind the Seasonal Event Passphrase",
         section = seasonalEventPassphraseSection,
-        position = 6
+        position = 7
     )
     default Color seasonalEventPassphraseBackgroundColor()
     {
