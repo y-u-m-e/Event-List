@@ -8,6 +8,7 @@ import java.util.List;
 /** Response of {@code GET /plugins/seasonal/view}, parsed with LOWER_CASE_WITH_UNDERSCORES. */
 public class SeasonalView
 {
+    public Boolean ok;
     public Event event;
     public Team team;
     public List<Stat> summary;

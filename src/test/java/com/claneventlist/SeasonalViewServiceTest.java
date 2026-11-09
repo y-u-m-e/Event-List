@@ -1,6 +1,11 @@
 package com.claneventlist;
 
 import com.google.gson.Gson;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.junit.Test;
 
 import java.awt.Color;
@@ -8,6 +13,7 @@ import java.awt.Color;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
 public class SeasonalViewServiceTest
 {
@@ -36,6 +42,39 @@ public class SeasonalViewServiceTest
     {
         assertNull(SeasonalViewService.parse(new Gson(), "{not json"));
         assertNull(SeasonalViewService.parse(new Gson(), ""));
+    }
+
+    @Test
+    public void notOkIsNull()
+    {
+        assertNull(SeasonalViewService.parse(new Gson(), "{}"));
+        assertNull(SeasonalViewService.parse(new Gson(), "{\"ok\":false}"));
+    }
+
+    @Test
+    public void refreshKeepsLastGoodViewOnFailure()
+    {
+        String[][] canned = {
+            {"200", SAMPLE_JSON}, {"500", "oops"}, {"200", "{\"ok\":false}"}, {"200", "{not json"}};
+        int[] calls = {0};
+        OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain ->
+        {
+            String[] r = canned[calls[0]++];
+            return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                .code(Integer.parseInt(r[0])).message("x")
+                .body(ResponseBody.create(MediaType.parse("application/json"), r[1])).build();
+        }).build();
+        SeasonalViewService svc = new SeasonalViewService(new EventListConfig() {}, client, new Gson());
+
+        svc.refresh("Y u m e");
+        SeasonalView good = svc.getView();
+        assertNotNull(good);
+        for (int i = 1; i < canned.length; i++)
+        {
+            svc.refresh("Y u m e");
+            assertSame(good, svc.getView());
+        }
+        assertEquals(canned.length, calls[0]);
     }
 
     @Test

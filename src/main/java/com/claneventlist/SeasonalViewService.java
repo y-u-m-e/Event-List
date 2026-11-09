@@ -89,10 +89,11 @@ public class SeasonalViewService
     {
         try
         {
-            return gson.newBuilder()
+            SeasonalView v = gson.newBuilder()
                 .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
                 .create()
                 .fromJson(json, SeasonalView.class);
+            return v != null && Boolean.TRUE.equals(v.ok) ? v : null;
         }
         catch (Exception e)
         {
