@@ -56,6 +56,29 @@ public class SeasonalPiecesTest
 	}
 
 	@Test
+	public void fontWithoutCheckMarkFallsBack()
+	{
+		// stand-in for the RuneScape fonts, which cannot show U+2713
+		java.awt.Font limited = new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.PLAIN, 12)
+		{
+			@Override
+			public boolean canDisplay(int cp)
+			{
+				return cp != 0x2713 && super.canDisplay(cp);
+			}
+
+			@Override
+			public int canDisplayUpTo(String s)
+			{
+				return s.indexOf('✓') >= 0 ? s.indexOf('✓') : -1;
+			}
+		};
+		assertEquals(limited, SeasonalPieces.displayable(limited, "abc"));
+		java.awt.Font f = SeasonalPieces.displayable(limited, "✓");
+		assertEquals(-1, f.canDisplayUpTo("✓"));
+	}
+
+	@Test
 	public void unknownTypeFallsBackToLink()
 	{
 		JComponent c = SeasonalPieces.render(obj("{\"type\":\"wheel\"}"), "https://ironforged.gg/seasonal-event", d -> {});

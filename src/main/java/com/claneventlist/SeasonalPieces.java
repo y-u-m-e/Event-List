@@ -102,11 +102,17 @@ public final class SeasonalPieces
 		return new Font(Font.SANS_SERIF, bold ? Font.BOLD : Font.PLAIN, 12);
 	}
 
+	/** RuneScape fonts lack glyphs such as the check mark; draw such text in a logical font instead. */
+	static Font displayable(Font f, String text)
+	{
+		return text == null || f.canDisplayUpTo(text) == -1 ? f : new Font(Font.DIALOG, Font.BOLD, f.getSize());
+	}
+
 	private static JLabel label(String text, Color color, boolean bold)
 	{
 		JLabel l = new JLabel(text);
 		l.setForeground(color);
-		l.setFont(font(bold));
+		l.setFont(displayable(font(bold), text));
 		return l;
 	}
 

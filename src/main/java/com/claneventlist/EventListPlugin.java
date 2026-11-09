@@ -86,6 +86,9 @@ public class EventListPlugin extends Plugin
 
     @Inject
     private SeasonalViewService seasonalViewService;
+    /** Client thread only. Set on login, cleared once the local player name is known. */
+    private boolean seasonalLoginPending;
+    private String lastSeasonalName;
 
     /** Created and disposed on the EDT; read from the scheduler thread only for isVisible(). */
     private volatile SeasonalBoardWindow boardWindow;
@@ -176,13 +179,26 @@ public class EventListPlugin extends Plugin
             {
                 refreshSeasonalCatalog();
             }
-            refreshSeasonalView();
+            seasonalLoginPending = true;
         }
     }
 
     @Subscribe
     public void onGameTick(GameTick event)
     {
+        if (seasonalLoginPending && initialized && config.showSeasonalEvent())
+        {
+            Player me = client.getLocalPlayer();
+            String name = me == null ? null : me.getName();
+            if (name != null)
+            {
+                seasonalLoginPending = false;
+                if (!name.equals(lastSeasonalName) || seasonalViewService.needsRefresh(config.seasonalCatalogRefreshInterval()))
+                {
+                    refreshSeasonalView();
+                }
+            }
+        }
         eventTeamService.onGameTick();
     }
 
@@ -484,6 +500,7 @@ public class EventListPlugin extends Plugin
             {
                 return;
             }
+            lastSeasonalName = name;
             executorService.submit(() ->
             {
                 seasonalViewService.refresh(name);

@@ -148,8 +148,6 @@ public class SeasonalGridComponent extends JComponent
 		Graphics2D g = (Graphics2D) g0.create();
 		try
 		{
-			g.setFont(font);
-			FontMetrics fm = g.getFontMetrics();
 			for (int r = 0; r < rows; r++)
 			{
 				for (int c = 0; c < cols; c++)
@@ -170,7 +168,9 @@ public class SeasonalGridComponent extends JComponent
 					if (text != null)
 					{
 						g.setColor(SeasonalView.parseColor(str(st, "text"), Color.WHITE));
-						g.drawString(text, x + (cell - fm.stringWidth(text)) / 2, y + (cell + fm.getAscent() - fm.getDescent()) / 2);
+						g.setFont(SeasonalPieces.displayable(font, text));
+						FontMetrics tm = g.getFontMetrics();
+						g.drawString(text, x + (cell - tm.stringWidth(text)) / 2, y + (cell + tm.getAscent() - tm.getDescent()) / 2);
 					}
 				}
 			}

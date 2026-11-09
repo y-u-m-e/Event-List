@@ -4,6 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -39,7 +42,6 @@ public class SeasonalBoardWindow extends JFrame
 		scroll.setBorder(BorderFactory.createEmptyBorder());
 		scroll.getViewport().setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		add(scroll, BorderLayout.CENTER);
-		setSize(560, 720);
 	}
 
 	/** Opens or raises the window. Position is kept after the first placement. */
@@ -48,6 +50,10 @@ public class SeasonalBoardWindow extends JFrame
 		setView(v);
 		if (!positioned)
 		{
+			pack();
+			Rectangle b = getGraphicsConfiguration().getBounds();
+			Insets in = Toolkit.getDefaultToolkit().getScreenInsets(getGraphicsConfiguration());
+			setSize(Math.min(getWidth(), b.width - in.left - in.right), Math.min(getHeight(), b.height - in.top - in.bottom));
 			setLocationRelativeTo(null);
 			positioned = true;
 		}

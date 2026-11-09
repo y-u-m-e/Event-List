@@ -261,7 +261,14 @@ public class EventListPanel extends PluginPanel
             seasonalEventCard.setVisible(false);
             return;
         }
-        if (v.event != null)
+        if (v.event == null)
+        {
+            seasonalEventCard.add(seasonalLabel("No seasonal event right now.", FontManager.getRunescapeSmallFont(), MUTED_TEXT));
+            seasonalEventCard.setVisible(true);
+            seasonalEventCard.revalidate();
+            seasonalEventCard.repaint();
+            return;
+        }
         {
             seasonalEventCard.add(seasonalLabel(v.event.name == null ? "Seasonal event" : v.event.name,
                 FontManager.getRunescapeBoldFont(), ACCENT_COLOR));
