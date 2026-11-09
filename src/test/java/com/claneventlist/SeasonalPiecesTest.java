@@ -66,15 +66,21 @@ public class SeasonalPiecesTest
 	public void knownTypesRender()
 	{
 		String[] pieces = {
-			"{\"type\":\"header\",\"title\":\"Delve\",\"text\":\"Team\",\"color\":\"#fbbf24\"}",
+			"{\"type\":\"header\",\"swatch\":\"#fbbf24\",\"title\":\"Delve\",\"right\":\"Team Red\"}",
 			"{\"type\":\"bar\",\"label\":\"Tiles\",\"value\":3,\"max\":10,\"color\":\"#10b981\"}",
 			"{\"type\":\"stats\",\"rows\":[{\"label\":\"Done\",\"value\":\"3\"}]}",
-			"{\"type\":\"text\",\"text\":\"hello\",\"muted\":true}"};
+			"{\"type\":\"text\",\"text\":\"hello\",\"tone\":\"muted\"}"};
 		for (String p : pieces)
 		{
 			assertNotNull(SeasonalPieces.render(obj(p), "u", d -> {}));
 		}
 		assertTrue(textOf(SeasonalPieces.render(obj(pieces[3]), "u", d -> {})).contains("hello"));
+		String h = textOf(SeasonalPieces.render(obj(pieces[0]), "u", d -> {}));
+		assertTrue(h.contains("Delve") && h.contains("Team Red"));
+		JComponent muted = SeasonalPieces.render(obj(pieces[3]), "u", d -> {});
+		JComponent normal = SeasonalPieces.render(obj(pieces[3].replace("muted", "normal")), "u", d -> {});
+		assertEquals(net.runelite.client.ui.ColorScheme.LIGHT_GRAY_COLOR, muted.getForeground());
+		assertEquals(java.awt.Color.WHITE, normal.getForeground());
 	}
 
 	@Test

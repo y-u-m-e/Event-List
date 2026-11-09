@@ -121,7 +121,7 @@ public final class SeasonalPieces
 	{
 		JPanel row = row();
 		JPanel swatch = new JPanel();
-		swatch.setBackground(SeasonalView.parseColor(str(p, "color", null), ColorScheme.BRAND_ORANGE));
+		swatch.setBackground(SeasonalView.parseColor(str(p, "swatch", null), ColorScheme.BRAND_ORANGE));
 		swatch.setPreferredSize(new Dimension(12, 12));
 		JPanel left = new JPanel(new BorderLayout(6, 0));
 		left.setOpaque(false);
@@ -131,7 +131,7 @@ public final class SeasonalPieces
 		left.add(swatchWrap, BorderLayout.WEST);
 		left.add(label(str(p, "title", ""), Color.WHITE, true), BorderLayout.CENTER);
 		row.add(left, BorderLayout.WEST);
-		JLabel right = label(str(p, "text", ""), ColorScheme.LIGHT_GRAY_COLOR, false);
+		JLabel right = label(str(p, "right", ""), ColorScheme.LIGHT_GRAY_COLOR, false);
 		right.setHorizontalAlignment(JLabel.RIGHT);
 		row.add(right, BorderLayout.CENTER);
 		return row;
@@ -180,7 +180,7 @@ public final class SeasonalPieces
 
 	private static JComponent text(JsonObject p)
 	{
-		boolean muted = p.has("muted") && p.get("muted").isJsonPrimitive() && p.get("muted").getAsBoolean();
+		boolean muted = "muted".equals(str(p, "tone", "normal"));
 		JLabel l = label(str(p, "text", ""), muted ? ColorScheme.LIGHT_GRAY_COLOR : Color.WHITE, false);
 		l.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 		return l;
